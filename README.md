@@ -4,6 +4,8 @@
 
 A WiFi vacuum gauge for a CNC vacuum table. An M5Stack ATOM Lite reads a pressure sensor on the vacuum line, and a plugin shows the reading inside [ncSender](https://github.com/siganberg/ncSender). It can warn you or feed-hold the machine if the vacuum drops during a job.
 
+![Demo: opening the gauge, switching mini gauge styles and moving it on the main screen](docs/demo.gif)
+
 ![The Vacuum Gauge window in ncSender](docs/gauge-window.png)
 
 ![Mini gauge styles: Number, Dial, Bar, Slim, Colour block](docs/mini-gauge-styles.png)
