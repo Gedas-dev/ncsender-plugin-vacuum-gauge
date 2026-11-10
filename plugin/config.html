@@ -1,0 +1,517 @@
+<style>
+  .vg-root { width: min(760px, 86vw); padding: 18px 20px 20px; color: var(--color-text-primary, #e8edf2); font-family: inherit; box-sizing: border-box; }
+  .vg-root * { box-sizing: border-box; }
+  .vg-grid { display: grid; grid-template-columns: minmax(240px, 300px) 1fr; gap: 22px; align-items: start; }
+  @media (max-width: 640px) { .vg-grid { grid-template-columns: 1fr; } }
+  .vg-dial { text-align: center; }
+  .vg-dial svg { width: 100%; max-width: 300px; height: auto; display: block; margin: 0 auto; }
+  .vg-status { display: inline-flex; align-items: center; gap: 8px; margin-top: 4px; padding: 5px 12px; border-radius: 999px; font-weight: 700; font-size: 0.85rem; letter-spacing: 0.04em; border: 1px solid var(--color-border, #3a4652); }
+  .vg-dot { width: 10px; height: 10px; border-radius: 50%; background: #7d8a96; }
+  .vg-sub { margin-top: 8px; font-size: 0.82rem; color: var(--color-text-secondary, #9aa7b3); min-height: 2.4em; }
+  .vg-form h4 { margin: 0 0 10px; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-secondary, #9aa7b3); }
+  .vg-form h4 + .vg-row { margin-top: 0; }
+  .vg-row { display: grid; grid-template-columns: 1fr 150px; gap: 10px; align-items: center; margin-top: 9px; }
+  .vg-row label { font-size: 0.9rem; }
+  .vg-row small { display: block; color: var(--color-text-secondary, #9aa7b3); font-size: 0.76rem; margin-top: 2px; }
+  .vg-root input, .vg-root select { width: 100%; padding: 7px 9px; border-radius: var(--radius-small, 6px); border: 1px solid var(--color-border, #3a4652); background: var(--color-surface-muted, #1c252e); color: inherit; font: inherit; font-size: 0.9rem; }
+  .vg-row.vg-wide { grid-template-columns: 1fr; }
+  .vg-sep { border: 0; border-top: 1px solid var(--color-border, #3a4652); margin: 16px 0 14px; }
+  .vg-root .vg-actions select { width: auto; padding: 8px 9px; font-size: 0.88rem; font-weight: 600; }
+  .vg-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; align-items: center; }
+  .vg-btn { padding: 8px 14px; border-radius: var(--radius-small, 6px); border: 1px solid var(--color-border, #3a4652); background: transparent; color: inherit; font: inherit; font-size: 0.88rem; font-weight: 600; cursor: pointer; }
+  .vg-btn:hover { border-color: var(--color-accent, #1abc9c); }
+  .vg-btn.vg-primary { background: var(--color-accent, #1abc9c); border-color: var(--color-accent, #1abc9c); color: #fff; }
+  .vg-msg { font-size: 0.82rem; color: var(--color-text-secondary, #9aa7b3); }
+  .vg-note { margin-top: 14px; font-size: 0.78rem; color: var(--color-text-secondary, #9aa7b3); line-height: 1.45; }
+</style>
+
+<div class="vg-root" id="vg-root">
+  <div class="vg-grid">
+    <div class="vg-dial">
+      <svg viewBox="0 0 240 216" role="img" aria-label="Vacuum gauge dial">
+        <path id="vg-arc-red" fill="none" stroke="#e5484d" stroke-width="14"/>
+        <path id="vg-arc-yellow" fill="none" stroke="#f5b83d" stroke-width="14"/>
+        <path id="vg-arc-green" fill="none" stroke="#3fb950" stroke-width="14"/>
+        <g id="vg-ticks" stroke="currentColor" stroke-width="1.5" opacity="0.55"></g>
+        <g id="vg-labels" fill="currentColor" font-size="11" text-anchor="middle" opacity="0.8"></g>
+        <line id="vg-needle" x1="120" y1="120" x2="120" y2="54" stroke="currentColor" stroke-width="4" stroke-linecap="round" style="transition: transform 0.35s ease-out; transform-origin: 120px 120px;"/>
+        <circle cx="120" cy="120" r="7" fill="currentColor"/>
+        <text id="vg-value" x="120" y="181" text-anchor="middle" font-size="26" font-weight="700" fill="currentColor" style="font-variant-numeric: tabular-nums;">--.-</text>
+        <text x="120" y="196" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.7">inHg</text>
+        <text id="vg-kpa" x="120" y="210" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.6"></text>
+      </svg>
+      <div class="vg-status"><span class="vg-dot" id="vg-dot"></span><span id="vg-state">CONNECTING</span></div>
+      <div class="vg-sub" id="vg-sub"></div>
+    </div>
+
+    <div class="vg-form">
+      <h4>Gauge</h4>
+      <div class="vg-row vg-wide">
+        <label for="vg-device">Gauge address
+          <small>Name or IP of the ESP32, e.g. vac-gauge.local or 192.168.1.50. For an ESPHome build, paste the full sensor URL.</small>
+        </label>
+        <input id="vg-device" type="text" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="vg-row">
+        <label for="vg-green">Green at or stronger than<small>inHg of vacuum that holds your work</small></label>
+        <input id="vg-green" type="number" step="0.5" min="0" max="30">
+      </div>
+      <div class="vg-row">
+        <label for="vg-yellow">Red when weaker than<small>inHg; between the two is yellow</small></label>
+        <input id="vg-yellow" type="number" step="0.5" min="0" max="30">
+      </div>
+
+      <hr class="vg-sep">
+      <h4>Check while a job runs</h4>
+      <div class="vg-row">
+        <label for="vg-mode">If the vacuum drops</label>
+        <select id="vg-mode">
+          <option value="off">Do nothing</option>
+          <option value="warn">Show a warning</option>
+          <option value="hold">Feed hold + warning</option>
+        </select>
+      </div>
+      <div class="vg-row">
+        <label for="vg-min">Minimum vacuum<small>inHg</small></label>
+        <input id="vg-min" type="number" step="0.5" min="0" max="30">
+      </div>
+      <div class="vg-row">
+        <label for="vg-delay">Must stay low for<small>seconds, so a brief dip is ignored</small></label>
+        <input id="vg-delay" type="number" step="0.5" min="0.5" max="30">
+      </div>
+
+      <div class="vg-actions">
+        <button class="vg-btn vg-primary" id="vg-save" type="button">Save</button>
+        <button class="vg-btn" id="vg-pin" type="button">Pin mini gauge</button>
+        <select id="vg-style" title="Mini gauge style" aria-label="Mini gauge style">
+          <option value="number">Style: Number</option>
+          <option value="dial">Style: Dial</option>
+          <option value="bar">Style: Bar</option>
+          <option value="slim">Style: Slim</option>
+          <option value="block">Style: Colour block</option>
+        </select>
+        <button class="vg-btn" id="vg-zero" type="button" title="Pump off, hose open to air">Zero sensor</button>
+        <span class="vg-msg" id="vg-msg"></span>
+      </div>
+      <div class="vg-note" id="vg-note"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var PLUGIN_ID = 'community.vacuum-gauge';
+  var SERVICE_VERSION = 2;
+  var MINI_STYLES = ['number', 'dial', 'bar', 'slim', 'block'];
+  var INHG_PER_KPA = 0.2953;
+  var DEFAULTS = { device: 'vac-gauge.local', pollMs: 500, greenAt: -15, yellowAt: -8, guardMode: 'warn', minVac: -10, guardDelaySec: 2 };
+
+  function apiBase() {
+    try {
+      if (window.ncSender && typeof window.ncSender.getApiBaseUrl === 'function') return window.ncSender.getApiBaseUrl(null) || '';
+    } catch (e) {}
+    try {
+      if (window.parent && window.parent.ncSender && typeof window.parent.ncSender.getApiBaseUrl === 'function') return window.parent.ncSender.getApiBaseUrl(null) || '';
+    } catch (e) {}
+    return '';
+  }
+
+  function vac(v, fallback) {
+    var n = parseFloat(v);
+    if (!isFinite(n)) n = fallback;
+    return -Math.min(30, Math.abs(n));
+  }
+
+  function normalize(raw) {
+    raw = raw || {};
+    var c = {
+      device: (typeof raw.device === 'string' && raw.device.trim()) || DEFAULTS.device,
+      pollMs: DEFAULTS.pollMs,
+      greenAt: vac(raw.greenAt, DEFAULTS.greenAt),
+      yellowAt: vac(raw.yellowAt, DEFAULTS.yellowAt),
+      guardMode: raw.guardMode === 'off' || raw.guardMode === 'hold' ? raw.guardMode : 'warn',
+      minVac: vac(raw.minVac, DEFAULTS.minVac),
+      guardDelaySec: Math.min(30, Math.max(0.5, parseFloat(raw.guardDelaySec) || DEFAULTS.guardDelaySec))
+    };
+    if (c.yellowAt < c.greenAt) { var t = c.yellowAt; c.yellowAt = c.greenAt; c.greenAt = t; }
+    return c;
+  }
+
+  function deviceUrl(device) {
+    var d = String(device || '');
+    if (!/^https?:\/\//i.test(d)) d = 'http://' + d;
+    var m = /^(https?:\/\/[^\/]+)(\/.*)?$/i.exec(d);
+    if (!m) return null;
+    return { origin: m[1], path: m[2] && m[2] !== '/' ? m[2] : '/api/vacuum' };
+  }
+
+  function parseReading(j) {
+    var v = null;
+    if (typeof j.inHg === 'number') v = j.inHg;
+    else if (typeof j.kPa === 'number') v = j.kPa * INHG_PER_KPA;
+    else if (typeof j.value === 'number') {
+      v = j.value;
+      var unit = String(j.state || '').toLowerCase();
+      if (unit.indexOf('kpa') >= 0) v *= INHG_PER_KPA;
+      else if (unit.indexOf('mbar') >= 0 || unit.indexOf('hpa') >= 0) v *= 0.02953;
+      else if (unit.indexOf('psi') >= 0) v *= 2.036;
+    }
+    if (typeof v !== 'number' || !isFinite(v)) throw new Error('No pressure value in the reply');
+    return v;
+  }
+
+  function zoneOf(reading, cfg) {
+    if (!reading || !reading.ok) return { key: 'off', label: 'NO SIGNAL', color: '#7d8a96' };
+    if (reading.inHg <= cfg.greenAt) return { key: 'green', label: 'HOLDING', color: '#3fb950' };
+    if (reading.inHg <= cfg.yellowAt) return { key: 'yellow', label: 'MARGINAL', color: '#f5b83d' };
+    return { key: 'red', label: 'TOO WEAK', color: '#e5484d' };
+  }
+
+  // ---- shared service: one poller for the dialog and the pinned mini gauge.
+  // It lives on window so the mini gauge keeps running after the dialog closes.
+  function createService() {
+    var svc = { version: SERVICE_VERSION, cfg: normalize(null), reading: null, listeners: [], timer: null, direct: false, busy: false, mini: null, miniStyle: 'number' };
+    try { var savedStyle = localStorage.getItem('vacuumGaugeMiniStyle'); if (MINI_STYLES.indexOf(savedStyle) >= 0) svc.miniStyle = savedStyle; } catch (e) {}
+
+    svc.emit = function () {
+      svc.listeners = svc.listeners.filter(function (fn) {
+        try { return fn(svc.reading, svc.cfg) !== false; } catch (e) { return false; }
+      });
+      if (svc.mini) svc.renderMini();
+      if (!svc.listeners.length && !svc.mini) svc.stop();
+    };
+
+    svc.pollDirect = function () {
+      var target = deviceUrl(svc.cfg.device);
+      if (!target) return Promise.resolve({ ok: false, error: 'Gauge address is not valid', serverPolling: false });
+      var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+      var kill = setTimeout(function () { if (ctrl) ctrl.abort(); }, 2000);
+      return fetch(target.origin + target.path, { signal: ctrl ? ctrl.signal : undefined, cache: 'no-store' })
+        .then(function (res) { if (!res.ok) throw new Error('Gauge answered HTTP ' + res.status); return res.json(); })
+        .then(function (j) { var v = parseReading(j); return { ok: true, inHg: v, kPa: v / INHG_PER_KPA, serverPolling: false }; })
+        .catch(function (e) { return { ok: false, error: 'No reply from the gauge at ' + svc.cfg.device, serverPolling: false }; })
+        .then(function (r) { clearTimeout(kill); return r; });
+    };
+
+    svc.pollServer = function () {
+      return fetch(apiBase() + '/api/plugins/' + PLUGIN_ID + '/request', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'status' })
+      }).then(function (res) {
+        if (res.status === 404 || res.status === 405) { svc.direct = true; return svc.pollDirect(); }
+        if (!res.ok) throw new Error('ncSender answered HTTP ' + res.status);
+        return res.json().then(function (r) {
+          if (r && r.serverPolling === false) { svc.direct = true; return svc.pollDirect(); }
+          return r;
+        });
+      });
+    };
+
+    svc.tick = function () {
+      if (svc.busy) return;
+      svc.busy = true;
+      (svc.direct ? svc.pollDirect() : svc.pollServer())
+        .catch(function (e) { return { ok: false, error: 'Cannot reach ncSender' }; })
+        .then(function (r) { svc.busy = false; svc.reading = r || { ok: false, error: 'No data' }; svc.emit(); });
+    };
+
+    svc.start = function () { if (!svc.timer) { svc.timer = setInterval(svc.tick, 500); svc.tick(); } };
+    svc.stop = function () { if (svc.timer) { clearInterval(svc.timer); svc.timer = null; } };
+    svc.subscribe = function (fn) { svc.listeners.push(fn); svc.start(); };
+
+    svc.buildMini = function () {
+      var el = svc.mini, st = svc.miniStyle;
+      var btn = 'border:0;background:none;color:inherit;line-height:1;cursor:pointer;opacity:.75;padding:0 0 0 6px;';
+      var dot = '<span data-vg="dot" style="flex:none;width:9px;height:9px;border-radius:50%;background:#7d8a96;"></span>';
+      var tools =
+        '<button data-vg="style" type="button" title="Change style" aria-label="Change mini gauge style" style="' + btn + 'font-size:14px;">&#8635;</button>' +
+        '<button data-vg="close" type="button" title="Unpin" aria-label="Unpin vacuum gauge" style="' + btn + 'font-size:16px;">&times;</button>';
+      var head = '<div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:.05em;">' +
+        dot + '<span data-vg="label" style="flex:1;white-space:nowrap;">VACUUM</span>' + tools + '</div>';
+      var num = function (px) { return '<span data-vg="value" style="font-size:' + px + 'px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.05;">--.-</span>'; };
+      var unit = '<span style="font-size:12px;opacity:.75;">inHg</span>';
+      var html;
+      if (st === 'dial') {
+        html = head +
+          '<svg viewBox="0 0 140 80" width="160" style="display:block;margin:6px auto 0;">' +
+            '<path data-vg="arc-red" fill="none" stroke="#e5484d" stroke-width="10"/>' +
+            '<path data-vg="arc-yellow" fill="none" stroke="#f5b83d" stroke-width="10"/>' +
+            '<path data-vg="arc-green" fill="none" stroke="#3fb950" stroke-width="10"/>' +
+            '<line data-vg="needle" x1="70" y1="70" x2="70" y2="28" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>' +
+            '<circle cx="70" cy="70" r="5" fill="currentColor"/>' +
+          '</svg>' +
+          '<div style="display:flex;align-items:baseline;justify-content:center;gap:5px;margin-top:2px;">' + num(24) + unit + '</div>';
+      } else if (st === 'bar') {
+        html = head +
+          '<div style="display:flex;align-items:baseline;gap:6px;margin-top:2px;">' + num(26) + unit + '</div>' +
+          '<div style="position:relative;width:190px;height:10px;margin:7px 0 4px;">' +
+            '<div style="display:flex;height:100%;border-radius:5px;overflow:hidden;">' +
+              '<span data-vg="seg-red" style="background:#e5484d;"></span>' +
+              '<span data-vg="seg-yellow" style="background:#f5b83d;"></span>' +
+              '<span data-vg="seg-green" style="background:#3fb950;flex:1;"></span>' +
+            '</div>' +
+            '<span data-vg="marker" style="position:absolute;top:-4px;bottom:-4px;width:4px;margin-left:-2px;left:0;border-radius:2px;background:#fff;box-shadow:0 0 0 1.5px #121a22;transition:left .3s ease-out;"></span>' +
+          '</div>';
+      } else if (st === 'slim') {
+        html = '<div style="display:flex;align-items:center;gap:7px;">' + dot + num(20) + unit +
+          '<span data-vg="label" style="font-size:10px;font-weight:700;letter-spacing:.05em;white-space:nowrap;opacity:.85;">VACUUM</span>' + tools + '</div>';
+      } else if (st === 'block') {
+        html = head +
+          '<div style="display:flex;align-items:baseline;justify-content:center;gap:8px;padding:2px 6px 0;">' + num(58) + unit + '</div>';
+      } else {
+        html = head + '<div style="display:flex;align-items:baseline;gap:6px;margin-top:2px;">' + num(30) + unit + '</div>';
+      }
+      el.innerHTML = html;
+      el.style.minWidth = st === 'slim' ? '0' : '150px';
+      el.style.padding = st === 'slim' ? '6px 10px' : '8px 12px 9px';
+      el.style.borderRadius = st === 'slim' ? '999px' : '12px';
+    };
+
+    svc.renderMini = function () {
+      var el = svc.mini, r = svc.reading, cfg = svc.cfg, z = zoneOf(r, cfg), st = svc.miniStyle;
+      var ok = r && r.ok, q = function (k) { return el.querySelector('[data-vg=' + k + ']'); };
+      var frac = function (v) { return Math.min(30, Math.max(0, -v)) / 30; };
+      q('label').textContent = z.label;
+      q('value').textContent = ok ? r.inHg.toFixed(1) : '--.-';
+
+      if (st === 'block') {
+        // whole tile takes the zone colour; text colour chosen for contrast
+        var bg = { green: '#35b453', yellow: '#f5b83d', red: '#cf3b40', off: '#46525d' }[z.key];
+        el.style.background = bg;
+        el.style.color = z.key === 'green' || z.key === 'yellow' ? '#0b1410' : '#ffffff';
+        el.style.borderColor = 'rgba(0,0,0,0.25)';
+        q('dot').style.background = 'currentColor';
+      } else {
+        el.style.background = 'rgba(18,26,34,0.94)';
+        el.style.color = '#f2f5f8';
+        el.style.borderColor = z.key === 'red' ? z.color : 'rgba(255,255,255,0.18)';
+        q('dot').style.background = z.color;
+      }
+
+      if (st === 'dial') {
+        var pt = function (f) { var t = (180 + f * 180) * Math.PI / 180; return (70 + 54 * Math.cos(t)).toFixed(2) + ' ' + (70 + 54 * Math.sin(t)).toFixed(2); };
+        var arc = function (f1, f2) { return f2 - f1 < 0.004 ? '' : 'M' + pt(f1) + ' A54 54 0 0 1 ' + pt(f2); };
+        var fy = frac(cfg.yellowAt), fg = frac(cfg.greenAt);
+        q('arc-red').setAttribute('d', arc(0, fy));
+        q('arc-yellow').setAttribute('d', arc(fy, fg));
+        q('arc-green').setAttribute('d', arc(fg, 1));
+        q('needle').setAttribute('transform', 'rotate(' + ((ok ? frac(r.inHg) : 0) * 180 - 90).toFixed(1) + ' 70 70)');
+      } else if (st === 'bar') {
+        q('seg-red').style.width = (frac(cfg.yellowAt) * 100) + '%';
+        q('seg-yellow').style.width = ((frac(cfg.greenAt) - frac(cfg.yellowAt)) * 100) + '%';
+        q('marker').style.left = ((ok ? frac(r.inHg) : 0) * 100) + '%';
+      }
+    };
+
+    svc.setStyle = function (name) {
+      if (MINI_STYLES.indexOf(name) < 0) name = 'number';
+      svc.miniStyle = name;
+      try { localStorage.setItem('vacuumGaugeMiniStyle', name); } catch (e) {}
+      if (svc.mini) { svc.buildMini(); svc.renderMini(); }
+    };
+
+    svc.pin = function () {
+      if (svc.mini) return;
+      var el = document.createElement('div');
+      el.setAttribute('data-vacuum-gauge-mini', '');
+      el.style.cssText = 'position:fixed;z-index:9000;right:18px;bottom:18px;' +
+        'border:2px solid rgba(255,255,255,0.18);box-shadow:0 8px 24px rgba(0,0,0,0.35);' +
+        'font-family:system-ui,sans-serif;cursor:grab;user-select:none;touch-action:none;';
+      svc.mini = el;
+      svc.buildMini();
+      try {
+        var pos = JSON.parse(localStorage.getItem('vacuumGaugeMiniPos') || 'null');
+        if (pos && isFinite(pos.x) && isFinite(pos.y)) {
+          el.style.right = 'auto'; el.style.bottom = 'auto';
+          el.style.left = Math.max(0, Math.min(window.innerWidth - 80, pos.x)) + 'px';
+          el.style.top = Math.max(0, Math.min(window.innerHeight - 40, pos.y)) + 'px';
+        }
+      } catch (e) {}
+
+      var drag = null;
+      el.addEventListener('pointerdown', function (ev) {
+        if (ev.target.closest && ev.target.closest('button')) return;
+        var rect = el.getBoundingClientRect();
+        drag = { dx: ev.clientX - rect.left, dy: ev.clientY - rect.top };
+        el.setPointerCapture(ev.pointerId);
+        el.style.cursor = 'grabbing';
+      });
+      el.addEventListener('pointermove', function (ev) {
+        if (!drag) return;
+        var x = Math.max(0, Math.min(window.innerWidth - el.offsetWidth, ev.clientX - drag.dx));
+        var y = Math.max(0, Math.min(window.innerHeight - el.offsetHeight, ev.clientY - drag.dy));
+        el.style.right = 'auto'; el.style.bottom = 'auto';
+        el.style.left = x + 'px'; el.style.top = y + 'px';
+      });
+      var endDrag = function () {
+        if (!drag) return;
+        drag = null;
+        el.style.cursor = 'grab';
+        try { localStorage.setItem('vacuumGaugeMiniPos', JSON.stringify({ x: el.offsetLeft, y: el.offsetTop })); } catch (e) {}
+      };
+      el.addEventListener('pointerup', endDrag);
+      el.addEventListener('pointercancel', endDrag);
+      el.addEventListener('click', function (ev) {
+        var b = ev.target.closest ? ev.target.closest('button') : null;
+        if (!b) return;
+        if (b.getAttribute('data-vg') === 'close') svc.unpin();
+        else if (b.getAttribute('data-vg') === 'style') {
+          svc.setStyle(MINI_STYLES[(MINI_STYLES.indexOf(svc.miniStyle) + 1) % MINI_STYLES.length]);
+          svc.emit();
+        }
+      });
+
+      document.body.appendChild(el);
+      try { localStorage.setItem('vacuumGaugeMiniPinned', '1'); } catch (e) {}
+      svc.renderMini();
+      svc.start();
+    };
+
+    svc.unpin = function () {
+      if (!svc.mini) return;
+      svc.mini.remove();
+      svc.mini = null;
+      try { localStorage.removeItem('vacuumGaugeMiniPinned'); } catch (e) {}
+      svc.emit();
+    };
+
+    return svc;
+  }
+
+  var svc = window.__vacuumGauge;
+  if (!svc || svc.version !== SERVICE_VERSION) {
+    if (svc) { try { svc.unpin(); svc.stop(); } catch (e) {} }
+    svc = window.__vacuumGauge = createService();
+  }
+
+  // ---- dialog
+  var root = document.getElementById('vg-root');
+  if (!root) return;
+  var $ = function (id) { return root.querySelector('#' + id); };
+  var CX = 120, CY = 120, R = 92, MAXV = 30;
+
+  function angle(v) { return 135 + (Math.min(MAXV, Math.max(0, -v)) / MAXV) * 270; }
+  function pt(a, r) { var t = a * Math.PI / 180; return [CX + r * Math.cos(t), CY + r * Math.sin(t)]; }
+  function arc(v1, v2) {
+    var a1 = angle(v1), a2 = angle(v2);
+    if (a2 - a1 < 0.5) return '';
+    var p1 = pt(a1, R), p2 = pt(a2, R);
+    return 'M' + p1[0].toFixed(2) + ' ' + p1[1].toFixed(2) + ' A' + R + ' ' + R + ' 0 ' + (a2 - a1 > 180 ? 1 : 0) + ' 1 ' + p2[0].toFixed(2) + ' ' + p2[1].toFixed(2);
+  }
+
+  function drawScale(cfg) {
+    $('vg-arc-red').setAttribute('d', arc(0, cfg.yellowAt));
+    $('vg-arc-yellow').setAttribute('d', arc(cfg.yellowAt, cfg.greenAt));
+    $('vg-arc-green').setAttribute('d', arc(cfg.greenAt, -MAXV));
+    var ticks = '', labels = '';
+    for (var v = 0; v <= MAXV; v += 5) {
+      var a = angle(-v), p1 = pt(a, R - 11), p2 = pt(a, R - 19), pl = pt(a, R - 31);
+      ticks += '<line x1="' + p1[0].toFixed(1) + '" y1="' + p1[1].toFixed(1) + '" x2="' + p2[0].toFixed(1) + '" y2="' + p2[1].toFixed(1) + '"/>';
+      labels += '<text x="' + pl[0].toFixed(1) + '" y="' + (pl[1] + 4).toFixed(1) + '">' + v + '</text>';
+    }
+    $('vg-ticks').innerHTML = ticks;
+    $('vg-labels').innerHTML = labels;
+  }
+
+  function fillForm(cfg) {
+    $('vg-device').value = cfg.device;
+    $('vg-green').value = Math.abs(cfg.greenAt);
+    $('vg-yellow').value = Math.abs(cfg.yellowAt);
+    $('vg-mode').value = cfg.guardMode;
+    $('vg-min').value = Math.abs(cfg.minVac);
+    $('vg-delay').value = cfg.guardDelaySec;
+  }
+
+  function readForm() {
+    return normalize({
+      device: $('vg-device').value,
+      greenAt: $('vg-green').value,
+      yellowAt: $('vg-yellow').value,
+      guardMode: $('vg-mode').value,
+      minVac: $('vg-min').value,
+      guardDelaySec: $('vg-delay').value
+    });
+  }
+
+  function say(text) { $('vg-msg').textContent = text || ''; }
+
+  function render(reading, cfg) {
+    if (!document.body.contains(root)) return false;   // dialog closed: unsubscribe
+    var z = zoneOf(reading, cfg);
+    $('vg-dot').style.background = z.color;
+    $('vg-state').textContent = reading ? z.label : 'CONNECTING';
+    var ok = reading && reading.ok;
+    $('vg-value').textContent = ok ? reading.inHg.toFixed(1) : '--.-';
+    $('vg-kpa').textContent = ok ? (reading.inHg / INHG_PER_KPA).toFixed(1) + ' kPa' : '';
+    $('vg-needle').style.transform = 'rotate(' + (angle(ok ? reading.inHg : 0) - 270) + 'deg)';
+    var sub = '';
+    if (reading && !ok) sub = reading.error || 'No reply from the gauge';
+    else if (ok && reading.guard && reading.guard.weak) sub = 'Below the minimum for cutting';
+    $('vg-sub').textContent = sub;
+    var note = '';
+    if (reading && reading.serverPolling === false) {
+      note = 'This ncSender version cannot read the gauge in the background, so this screen reads it directly and the job check is not active. Update ncSender to 2.0.225 or newer to enable it.';
+    }
+    $('vg-note').textContent = note;
+    $('vg-pin').textContent = svc.mini ? 'Unpin mini gauge' : 'Pin mini gauge';
+    if (document.activeElement !== $('vg-style')) $('vg-style').value = svc.miniStyle;
+    return true;
+  }
+
+  drawScale(svc.cfg);
+  fillForm(svc.cfg);
+
+  fetch(apiBase() + '/api/plugins/' + PLUGIN_ID + '/settings')
+    .then(function (res) { return res.ok ? res.json() : {}; })
+    .catch(function () { return {}; })
+    .then(function (raw) {
+      svc.cfg = normalize(raw);
+      if (document.body.contains(root)) { drawScale(svc.cfg); fillForm(svc.cfg); }
+      svc.subscribe(render);
+      var pinned = false;
+      try { pinned = localStorage.getItem('vacuumGaugeMiniPinned') === '1'; } catch (e) {}
+      if (pinned && window.parent === window) svc.pin();
+    });
+
+  $('vg-save').addEventListener('click', function () {
+    var cfg = readForm();
+    say('Saving...');
+    fetch(apiBase() + '/api/plugins/' + PLUGIN_ID + '/settings', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg)
+    }).then(function (res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      svc.cfg = cfg;
+      drawScale(cfg);
+      fillForm(cfg);
+      say('Saved');
+      setTimeout(function () { if (document.body.contains(root)) say(''); }, 2500);
+    }).catch(function () { say('Could not save the settings'); });
+  });
+
+  $('vg-pin').addEventListener('click', function () {
+    if (svc.mini) svc.unpin(); else svc.pin();
+    $('vg-pin').textContent = svc.mini ? 'Unpin mini gauge' : 'Pin mini gauge';
+  });
+
+  $('vg-style').value = svc.miniStyle;
+  $('vg-style').addEventListener('change', function () {
+    svc.setStyle($('vg-style').value);
+    if (!svc.mini) svc.pin();          // choosing a style shows the mini gauge
+    $('vg-pin').textContent = 'Unpin mini gauge';
+  });
+
+  $('vg-zero').addEventListener('click', function () {
+    if (!window.confirm('Zero the sensor now? Do this with the pump off and the hose open to air.')) return;
+    say('Zeroing...');
+    var done = function (ok) { say(ok ? 'Zero sent' : 'Zero failed - is the pump off?'); };
+    if (svc.direct) {
+      var target = deviceUrl(svc.cfg.device);
+      if (!target) return done(false);
+      fetch(target.origin + '/api/zero', { method: 'POST' }).then(function (res) { done(res.ok); }).catch(function () { done(false); });
+    } else {
+      fetch(apiBase() + '/api/plugins/' + PLUGIN_ID + '/request', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'zero' })
+      }).then(function (res) { return res.json(); }).then(function (r) { done(r && r.ok); }).catch(function () { done(false); });
+    }
+  });
+})();
+</script>

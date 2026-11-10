@@ -1,0 +1,30 @@
+{
+  "id": "community.vacuum-gauge",
+  "name": "Vacuum Gauge",
+  "version": "1.1.1",
+  "minAppVersion": "2.0.0",
+  "platforms": {
+    "pro-v2": "2.0.0"
+  },
+  "author": "Shop build",
+  "description": "Live vacuum-table pressure from an ESP32 gauge on the shop network: a dial under Tools, an optional pinned mini gauge, and a low-vacuum check that warns or feed-holds while a job is running.",
+  "category": "utility",
+  "icon": "icon.svg",
+  "priority": 90,
+  "commands": "commands.js",
+  "configUi": "config.html",
+  "events": [
+    "background"
+  ],
+  "permissions": [
+    "network"
+  ],
+  "toolMenu": [
+    {
+      "id": "open-vacuum-gauge",
+      "label": "Vacuum Gauge",
+      "icon": "icon.svg",
+      "clientOnly": true
+    }
+  ]
+}
