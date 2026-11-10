@@ -5,8 +5,9 @@
  * over HTTP, keeps the latest reading for the plugin window, and watches
  * the vacuum while a job is running.
  *
- * It only uses a background timer. It does not touch the G-code or the
- * command pipeline, so a fault here cannot block machine commands.
+ * It only uses a background timer. It does not hook the G-code or the
+ * command pipeline, so a fault here cannot block machine commands. When the
+ * check is set to act, it sends a feed hold, or stops the job and raises Z.
  */
 
 var VG_INHG_PER_KPA = 0.2953;
@@ -26,7 +27,9 @@ var VG = {
   actedThisEpisode: false,
   offlineNoticed: false,
   lastAction: null,
-  lastActionAt: 0
+  lastActionAt: 0,
+  seq: null,
+  lastStop: null
 };
 
 function vgNum(v, fallback, min, max) {
@@ -46,7 +49,7 @@ function vgVac(v, fallback) {
 function buildInitialConfig(raw) {
   raw = raw || {};
   var device = typeof raw.device === 'string' ? raw.device.replace(/^\s+|\s+$/g, '') : '';
-  var mode = raw.guardMode === 'off' || raw.guardMode === 'hold' ? raw.guardMode : 'warn';
+  var mode = raw.guardMode === 'off' || raw.guardMode === 'hold' || raw.guardMode === 'stop' ? raw.guardMode : 'warn';
   var green = vgVac(raw.greenAt, -15);
   var yellow = vgVac(raw.yellowAt, -8);
   if (yellow < green) { var t = yellow; yellow = green; green = t; }
@@ -57,7 +60,8 @@ function buildInitialConfig(raw) {
     yellowAt: yellow,
     guardMode: mode,
     minVac: vgVac(raw.minVac, -10),
-    guardDelaySec: vgNum(raw.guardDelaySec, 2, 0.5, 30)
+    guardDelaySec: vgNum(raw.guardDelaySec, 2, 0.5, 30),
+    liftMm: vgNum(raw.liftMm, 20, 0, 200)
   };
   VG.cfg = cfg;
   return cfg;
@@ -170,7 +174,10 @@ function vgGuard(now) {
   VG.lastActionAt = now;
   var details = { 'Reading': vgFmt(VG.inHg), 'Minimum': vgFmt(cfg.minVac) };
   var machine = String(state.machineStatus || '');
-  if (cfg.guardMode === 'hold' && machine.indexOf('Hold') !== 0) {
+  if (cfg.guardMode === 'stop') {
+    VG.lastAction = 'stop';
+    vgStartStop(now, state, details);
+  } else if (cfg.guardMode === 'hold' && machine.indexOf('Hold') !== 0) {
     VG.lastAction = 'hold';
     pluginContext.sendCommand('!', '! (Feed Hold - vacuum low)');
     pluginContext.showNotice('Vacuum low - feed hold sent',
@@ -184,10 +191,87 @@ function vgGuard(now) {
   }
 }
 
+// ---- Stop the job, switch the spindle off, raise Z ----------------------
+//
+// pluginContext.stopJob() ends the job, sends a feed hold, waits until the
+// axes are at rest and then soft-resets the controller. The reset switches
+// the spindle and coolant off. Only after the controller has been Idle for a
+// while (so the reset is certainly over) is M5 sent again and Z raised.
+// A jog sent before the reset would be cut off by it and raise an alarm.
+
+var VG_STOP_MIN_MS = 2000;      // never move sooner than this after stopJob
+var VG_STOP_IDLE_MS = 1000;     // controller must report Idle this long
+var VG_STOP_TIMEOUT_MS = 20000; // give up waiting for Idle after this
+var VG_Z_TOP_MARGIN = 1;        // never raise above machine Z = -1 mm
+
+function vgStartStop(now, state, details) {
+  if (VG.seq) return;
+  VG.seq = { startedAt: now, idleSince: 0, line: state && state.line ? state.line : 0, details: details };
+  pluginContext.stopJob();
+}
+
+// How far Z may go up from machine position z (mm). Machine Z is 0 at the
+// top after homing and negative below it. If the position is not below the
+// top margin, the machine is either at the top or not homed: do not move.
+function vgLiftFor(z, liftMm) {
+  if (typeof z !== 'number' || !isFinite(z) || liftMm <= 0) return 0;
+  var room = -VG_Z_TOP_MARGIN - z;
+  if (room <= 0) return 0;
+  return Math.round(Math.min(liftMm, room) * 1000) / 1000;
+}
+
+function vgFinishStop(now, outcome, liftedMm) {
+  var seq = VG.seq;
+  VG.seq = null;
+  VG.lastStop = { at: now, outcome: outcome, liftedMm: liftedMm, line: seq.line };
+  var details = seq.details || {};
+  if (seq.line) details['Stopped at line'] = String(seq.line);
+  var msg;
+  if (outcome === 'lifted') {
+    details['Z raised'] = liftedMm + ' mm';
+    msg = 'The vacuum dropped below the minimum, so the job was stopped, the spindle was switched off and Z was raised. The job is ended, not paused. Restore the vacuum, check the workpiece, then start again from the stopped line.';
+  } else if (outcome === 'nolift') {
+    msg = 'The vacuum dropped below the minimum, so the job was stopped and the spindle was switched off. Z was not raised: the machine is at the top of its travel, is not homed, or the raise distance is set to 0.';
+  } else if (outcome === 'alarm') {
+    msg = 'The vacuum dropped below the minimum and the job was stopped, but the controller is in an alarm state, so Z was not raised. Check the machine before moving it.';
+  } else {
+    msg = 'The vacuum dropped below the minimum and a stop was sent, but the controller did not report Idle in time, so Z was not raised. Check that the spindle has stopped.';
+  }
+  pluginContext.showNotice('Vacuum lost - job stopped', msg, details);
+}
+
+function vgStopStep(now) {
+  var seq = VG.seq;
+  if (!seq) return;
+  var state = pluginContext.getServerState();
+  var machine = String(state && state.machineStatus ? state.machineStatus : '');
+  var elapsed = now - seq.startedAt;
+
+  if (machine.indexOf('Alarm') === 0 && elapsed >= VG_STOP_MIN_MS) { vgFinishStop(now, 'alarm', 0); return; }
+  if (machine.indexOf('Idle') === 0) { if (!seq.idleSince) seq.idleSince = now; }
+  else seq.idleSince = 0;
+
+  if (elapsed >= VG_STOP_MIN_MS && seq.idleSince && now - seq.idleSince >= VG_STOP_IDLE_MS) {
+    pluginContext.sendCommand('M5', 'M5 (Spindle off - vacuum lost)');
+    var z = state && state.mpos ? state.mpos.z : null;
+    var lift = vgLiftFor(z, VG.cfg ? VG.cfg.liftMm : 0);
+    if (lift > 0) {
+      var target = Math.round((z + lift) * 1000) / 1000;
+      pluginContext.sendCommand('$J=G53 G21 G90 Z' + target + ' F1500', 'Raise Z ' + lift + ' mm (vacuum lost)');
+      vgFinishStop(now, 'lifted', lift);
+    } else {
+      vgFinishStop(now, 'nolift', 0);
+    }
+    return;
+  }
+  if (elapsed >= VG_STOP_TIMEOUT_MS) vgFinishStop(now, 'timeout', 0);
+}
+
 function vgTick() {
   var now = Date.now();
   try { vgPoll(now); } catch (e) { VG.busy = false; VG.lastError = String(e && e.message ? e.message : e); }
   try { vgGuard(now); } catch (e2) { VG.guardError = String(e2 && e2.message ? e2.message : e2); }
+  try { vgStopStep(now); } catch (e3) { VG.seq = null; VG.guardError = String(e3 && e3.message ? e3.message : e3); }
 }
 
 // Called by ncSender for POST /api/plugins/community.vacuum-gauge/request
@@ -216,7 +300,9 @@ function onRequest(payload) {
       mode: VG.cfg ? VG.cfg.guardMode : 'off',
       weak: VG.weakSince > 0,
       lastAction: VG.lastAction,
-      lastActionAgoMs: VG.lastActionAt ? now - VG.lastActionAt : null
+      lastActionAgoMs: VG.lastActionAt ? now - VG.lastActionAt : null,
+      stopping: !!VG.seq,
+      lastStop: VG.lastStop
     },
     cfg: VG.cfg
   };

@@ -69,6 +69,7 @@
           <option value="off">Do nothing</option>
           <option value="warn">Show a warning</option>
           <option value="hold">Feed hold + warning</option>
+          <option value="stop">Stop job + raise Z</option>
         </select>
       </div>
       <div class="vg-row">
@@ -78,6 +79,10 @@
       <div class="vg-row">
         <label for="vg-delay">Must stay low for<small>seconds, so a brief dip is ignored</small></label>
         <input id="vg-delay" type="number" step="0.5" min="0.5" max="30">
+      </div>
+      <div class="vg-row" id="vg-lift-row">
+        <label for="vg-lift">Raise Z by<small>mm, after the stop. Needs a homed machine; never goes above the top</small></label>
+        <input id="vg-lift" type="number" step="1" min="0" max="200">
       </div>
 
       <div class="vg-actions">
@@ -104,7 +109,7 @@
   var SERVICE_VERSION = 2;
   var MINI_STYLES = ['number', 'dial', 'bar', 'slim', 'block'];
   var INHG_PER_KPA = 0.2953;
-  var DEFAULTS = { device: 'vac-gauge.local', pollMs: 500, greenAt: -15, yellowAt: -8, guardMode: 'warn', minVac: -10, guardDelaySec: 2 };
+  var DEFAULTS = { device: 'vac-gauge.local', pollMs: 500, greenAt: -15, yellowAt: -8, guardMode: 'warn', minVac: -10, guardDelaySec: 2, liftMm: 20 };
 
   function apiBase() {
     try {
@@ -129,9 +134,10 @@
       pollMs: DEFAULTS.pollMs,
       greenAt: vac(raw.greenAt, DEFAULTS.greenAt),
       yellowAt: vac(raw.yellowAt, DEFAULTS.yellowAt),
-      guardMode: raw.guardMode === 'off' || raw.guardMode === 'hold' ? raw.guardMode : 'warn',
+      guardMode: raw.guardMode === 'off' || raw.guardMode === 'hold' || raw.guardMode === 'stop' ? raw.guardMode : 'warn',
       minVac: vac(raw.minVac, DEFAULTS.minVac),
-      guardDelaySec: Math.min(30, Math.max(0.5, parseFloat(raw.guardDelaySec) || DEFAULTS.guardDelaySec))
+      guardDelaySec: Math.min(30, Math.max(0.5, parseFloat(raw.guardDelaySec) || DEFAULTS.guardDelaySec)),
+      liftMm: (function (n) { return isFinite(n) ? Math.min(200, Math.max(0, n)) : DEFAULTS.liftMm; })(parseFloat(raw.liftMm))
     };
     if (c.yellowAt < c.greenAt) { var t = c.yellowAt; c.yellowAt = c.greenAt; c.greenAt = t; }
     return c;
@@ -419,6 +425,8 @@
     $('vg-mode').value = cfg.guardMode;
     $('vg-min').value = Math.abs(cfg.minVac);
     $('vg-delay').value = cfg.guardDelaySec;
+    $('vg-lift').value = cfg.liftMm;
+    showLift();
   }
 
   function readForm() {
@@ -428,9 +436,12 @@
       yellowAt: $('vg-yellow').value,
       guardMode: $('vg-mode').value,
       minVac: $('vg-min').value,
-      guardDelaySec: $('vg-delay').value
+      guardDelaySec: $('vg-delay').value,
+      liftMm: $('vg-lift').value
     });
   }
+
+  function showLift() { $('vg-lift-row').style.display = $('vg-mode').value === 'stop' ? '' : 'none'; }
 
   function say(text) { $('vg-msg').textContent = text || ''; }
 
@@ -445,6 +456,7 @@
     $('vg-needle').style.transform = 'rotate(' + (angle(ok ? reading.inHg : 0) - 270) + 'deg)';
     var sub = '';
     if (reading && !ok) sub = reading.error || 'No reply from the gauge';
+    else if (reading && reading.guard && reading.guard.stopping) sub = 'Vacuum lost: stopping the job';
     else if (ok && reading.guard && reading.guard.weak) sub = 'Below the minimum for cutting';
     $('vg-sub').textContent = sub;
     var note = '';
@@ -491,6 +503,8 @@
     if (svc.mini) svc.unpin(); else svc.pin();
     $('vg-pin').textContent = svc.mini ? 'Unpin mini gauge' : 'Pin mini gauge';
   });
+
+  $('vg-mode').addEventListener('change', showLift);
 
   $('vg-style').value = svc.miniStyle;
   $('vg-style').addEventListener('change', function () {
