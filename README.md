@@ -1,6 +1,6 @@
 # Vacuum Gauge for ncSender
 
-**Version 1.1.1** · [Download the latest release](https://github.com/Gedas-dev/ncsender-plugin-vacuum-gauge/releases/latest)
+**Version 1.1.2** · [Download the latest release](https://github.com/Gedas-dev/ncsender-plugin-vacuum-gauge/releases/latest)
 
 A WiFi vacuum gauge for a CNC vacuum table. An M5Stack ATOM Lite reads a pressure sensor on the vacuum line, and a plugin shows the reading inside [ncSender](https://github.com/siganberg/ncSender). It can warn you or feed-hold the machine if the vacuum drops during a job.
 
@@ -33,3 +33,7 @@ Full steps with pictures: [Install Guide (PDF)](docs/Vacuum-Gauge-Install-Guide.
 
 - Needs ncSender 2.0.225 or newer.
 - Feed hold stops the movement, but **the spindle keeps turning**. This is an operator aid, not a safety device.
+
+## Licence
+
+GPL-3.0. See [LICENSE](LICENSE).
