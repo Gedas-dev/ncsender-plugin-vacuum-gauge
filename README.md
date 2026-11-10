@@ -8,6 +8,8 @@ A WiFi vacuum gauge for a CNC vacuum table. An M5Stack ATOM Lite reads a pressur
 
 ![Mini gauge styles: Number, Dial, Bar, Slim, Colour block](docs/mini-gauge-styles.png)
 
+The mini gauge is optional. Pin it and it floats on the main screen: drag it anywhere, for example over the visualizer, and pick one of five styles. Unpin it to use only the Vacuum Gauge window.
+
 ## Parts
 
 - M5Stack ATOM Lite (ESP32)
