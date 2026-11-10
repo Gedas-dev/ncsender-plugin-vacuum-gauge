@@ -49,7 +49,7 @@ function vgVac(v, fallback) {
 function buildInitialConfig(raw) {
   raw = raw || {};
   var device = typeof raw.device === 'string' ? raw.device.replace(/^\s+|\s+$/g, '') : '';
-  var mode = raw.guardMode === 'off' || raw.guardMode === 'hold' || raw.guardMode === 'stop' ? raw.guardMode : 'warn';
+  var mode = raw.guardMode === 'off' || raw.guardMode === 'hold' || raw.guardMode === 'park' || raw.guardMode === 'stop' ? raw.guardMode : 'warn';
   var green = vgVac(raw.greenAt, -15);
   var yellow = vgVac(raw.yellowAt, -8);
   if (yellow < green) { var t = yellow; yellow = green; green = t; }
@@ -177,6 +177,22 @@ function vgGuard(now) {
   if (cfg.guardMode === 'stop') {
     VG.lastAction = 'stop';
     vgStartStop(now, state, details);
+  } else if (cfg.guardMode === 'park' && machine.indexOf('Hold') !== 0 && machine.indexOf('Door') !== 0) {
+    // Safety-door command: the controller holds, stops the spindle and, when
+    // its parking cycle is enabled ($41), retracts Z. ncSender marks the job
+    // paused and Resume brings Z back down and restarts the spindle. This is
+    // the same command ncSender's own "Park on Pause" setting sends.
+    VG.lastAction = 'park';
+    var p41 = null;
+    try { p41 = pluginContext.getFirmwareSetting(41); } catch (e41) { p41 = null; }
+    var parking = typeof p41 === 'number' ? (Math.floor(p41) % 2 === 1) : null;
+    pluginContext.sendCommand('\x84', '0x84 (Park - vacuum low)');
+    details['Controller parking ($41)'] = parking === null ? 'unknown' : (parking ? 'on' : 'off');
+    pluginContext.showNotice('Vacuum low - job paused',
+      parking === false
+        ? 'The vacuum dropped below the minimum, so the job was paused and the spindle was stopped. Z was not raised, because parking is switched off in the controller ($41). Restore the vacuum, then press Resume.'
+        : 'The vacuum dropped below the minimum, so the job was paused: the controller stops the spindle and parks Z. Restore the vacuum, then press Resume. The spindle restarts and Z returns before cutting continues.',
+      details);
   } else if (cfg.guardMode === 'hold' && machine.indexOf('Hold') !== 0) {
     VG.lastAction = 'hold';
     pluginContext.sendCommand('!', '! (Feed Hold - vacuum low)');
