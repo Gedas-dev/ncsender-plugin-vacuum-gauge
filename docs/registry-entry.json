@@ -10,6 +10,7 @@
   "releaseUrl": "https://github.com/Gedas-dev/ncsender-plugin-vacuum-gauge/releases",
   "minAppVersion": "2.0.225",
   "platforms": {
-    "pro-v2": "2.0.225"
+    "v2": "2.0.225",
+    "pro-v2": "2.0.316"
   }
 }
