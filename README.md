@@ -31,4 +31,3 @@ Full steps with pictures: [Install Guide (PDF)](docs/Vacuum-Gauge-Install-Guide.
 
 - Needs ncSender 2.0.225 or newer.
 - Feed hold stops the movement, but **the spindle keeps turning**. This is an operator aid, not a safety device.
-- Tested against a simulated gauge. Not yet run on a real machine.
