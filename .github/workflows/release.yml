@@ -1,0 +1,67 @@
+name: Build and Release Plugin
+
+# Publishes the plugin zip as a GitHub release.
+# The version comes from plugin/manifest.json: bump it, edit latest_release.md,
+# push to main, and release v<version> is created with the zip attached.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'plugin/**'
+      - 'firmware/**'
+      - 'docs/*.pdf'
+      - 'latest_release.md'
+      - '.github/workflows/release.yml'
+  workflow_dispatch:
+
+jobs:
+  release:
+    name: Create Plugin Release
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check plugin
+        run: |
+          node --check plugin/commands.js
+          jq -e '.id and .name and .version' plugin/manifest.json > /dev/null
+          # pluginContext.log() crashes the packaged ncSender app. Keep it out.
+          if grep -n 'pluginContext\.log(' plugin/commands.js; then
+            echo "plugin/commands.js must not call pluginContext.log()"
+            exit 1
+          fi
+
+      - name: Get plugin info
+        id: info
+        run: |
+          echo "ID=$(jq -r '.id' plugin/manifest.json)" >> "$GITHUB_OUTPUT"
+          echo "NAME=$(jq -r '.name' plugin/manifest.json)" >> "$GITHUB_OUTPUT"
+          echo "TAG=v$(jq -r '.version' plugin/manifest.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Create plugin package
+        run: |
+          ID="${{ steps.info.outputs.ID }}"
+          TAG="${{ steps.info.outputs.TAG }}"
+          mkdir -p dist "tmp/$ID"
+          cp -r plugin/. "tmp/$ID/"
+          (cd tmp && zip -r "../dist/${ID}_${TAG}.zip" "$ID")
+          cp firmware/VacGauge/VacGauge.ino dist/
+          cp docs/Vacuum-Gauge-Install-Guide.pdf dist/
+          ls -lh dist/
+
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          NAME="${{ steps.info.outputs.NAME }}"
+          TAG="${{ steps.info.outputs.TAG }}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$TAG" --title "$NAME $TAG" --notes-file latest_release.md --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" --target "$GITHUB_SHA" --title "$NAME $TAG" \
+              --notes-file latest_release.md --repo "$GITHUB_REPOSITORY" dist/*
+          fi

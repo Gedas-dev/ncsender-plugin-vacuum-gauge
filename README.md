@@ -20,7 +20,7 @@ The mini gauge is optional. Pin it and it floats on the main screen: drag it any
 ## Install
 
 1. **Gauge:** plug the sensor into the ATOM's Grove port. Open [`firmware/VacGauge/VacGauge.ino`](firmware/VacGauge/VacGauge.ino) in Arduino IDE, type your WiFi name and password at the top, select board **M5Atom**, and upload.
-2. **Plugin:** download [`vacuum-gauge-ncsender-plugin.zip`](dist/vacuum-gauge-ncsender-plugin.zip). In ncSender open **Plugins -> Install from a ZIP file**. Do not unzip it.
+2. **Plugin:** download the plugin zip from the [latest release](https://github.com/Gedas-dev/ncsender-plugin-vacuum-gauge/releases/latest). In ncSender open **Plugins -> Install from a ZIP file**. Do not unzip it.
 3. **Set up:** open **Tools -> Vacuum Gauge**. With the pump off, click **Zero sensor**. Set your green and red levels and click **Save**.
 
 If the dial says NO SIGNAL, type the ATOM's IP address in **Gauge address**.
