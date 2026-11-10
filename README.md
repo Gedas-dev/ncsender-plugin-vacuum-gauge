@@ -1,5 +1,7 @@
 # Vacuum Gauge for ncSender
 
+**Version 1.1.1** · [Download the latest release](https://github.com/Gedas-dev/ncsender-vacuum-gauge/releases/latest)
+
 A WiFi vacuum gauge for a CNC vacuum table, with a plugin that shows the reading inside [ncSender](https://github.com/siganberg/ncSender).
 
 A pressure sensor on the vacuum line feeds an M5Stack ATOM Lite (ESP32). The ATOM serves the reading over the shop network, and the plugin shows it in ncSender as a dial, as a small pinned gauge on the main screen, and as a check that can warn you or feed-hold the machine if the vacuum drops during a job.
@@ -105,6 +107,8 @@ An ESPHome build that serves `{"value":-18.4,"state":"-18.4 inHg"}` also works: 
 - The firmware compiles for the M5Atom board. It has not yet been run on a real sensor.
 - The plugin was tested on ncSender 2.0.225 built from source for Linux, including a native (AOT) build like the packaged app, against a simulated gauge. It has not yet been run on a real machine.
 
-### Note for plugin authors
+## Versions
 
-Version 1.0.0 of this plugin crashed the packaged ncSender app on load. The cause was a call to `pluginContext.log()`: in the native (AOT) build that call aborts the whole server, while a normal development build runs it without trouble. This plugin does not call it anywhere. If you write a plugin, test it on a native build before you ship it.
+| Version | Changes |
+|---|---|
+| 1.1.1 | First release. Dial window, pinned mini gauge in five styles, and the low-vacuum check while a job runs |
