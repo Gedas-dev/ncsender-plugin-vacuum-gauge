@@ -35,6 +35,10 @@ Full steps with pictures: [Install Guide (PDF)](docs/Vacuum-Gauge-Install-Guide.
 - Feed hold stops the movement, but **the spindle keeps turning**. "Pause + park Z" needs parking enabled in the controller ($41). This is an operator aid, not a safety device.
 - Try "Pause + park Z" and "Stop job + raise Z" in air first, with no bit and Z well above the table.
 
+## Credits
+
+The hardware (M5Stack ATOM Lite with the Tube Pressure Unit, and the tube and fitting setup) and the build instructions come from [dehoutwinkel](https://github.com/dehoutwinkel). Thank you for sharing them.
+
 ## Licence
 
 GPL-3.0. See [LICENSE](LICENSE).
