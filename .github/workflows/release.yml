@@ -50,6 +50,7 @@ jobs:
           (cd tmp && zip -r "../dist/${ID}_${TAG}.zip" "$ID")
           cp firmware/VacGauge/VacGauge.ino dist/
           cp docs/Vacuum-Gauge-Install-Guide.pdf dist/
+          cp docs/Power-from-SLB-5V.pdf dist/
           ls -lh dist/
 
       - name: Create or update release
