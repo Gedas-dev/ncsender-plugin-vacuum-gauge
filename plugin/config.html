@@ -100,6 +100,7 @@
         <button class="vg-btn" id="vg-zero" type="button" title="Pump off, hose open to air">Zero sensor</button>
         <span class="vg-msg" id="vg-msg"></span>
       </div>
+      <div class="vg-note" id="vg-panel-note" style="display:none">The gauge panel floats on the main screen. Drag it by its title bar. If you closed it, bring it back with the Vacuum Gauge Panel button on the Plugins tab.</div>
       <div class="vg-note" id="vg-note"></div>
     </div>
   </div>
@@ -108,10 +109,10 @@
 <script>
 (function () {
   var PLUGIN_ID = 'community.vacuum-gauge';
-  var SERVICE_VERSION = 2;
+  var SERVICE_VERSION = 3;
   var MINI_STYLES = ['number', 'dial', 'bar', 'slim', 'block'];
   var INHG_PER_KPA = 0.2953;
-  var DEFAULTS = { device: 'vac-gauge.local', pollMs: 500, greenAt: -15, yellowAt: -8, guardMode: 'warn', minVac: -10, guardDelaySec: 2, liftMm: 20 };
+  var DEFAULTS = { device: 'vac-gauge.local', pollMs: 500, greenAt: -15, yellowAt: -8, guardMode: 'warn', minVac: -10, guardDelaySec: 2, liftMm: 20, miniStyle: 'number' };
 
   function apiBase() {
     try {
@@ -139,6 +140,7 @@
       guardMode: raw.guardMode === 'off' || raw.guardMode === 'hold' || raw.guardMode === 'park' || raw.guardMode === 'stop' ? raw.guardMode : 'warn',
       minVac: vac(raw.minVac, DEFAULTS.minVac),
       guardDelaySec: Math.min(30, Math.max(0.5, parseFloat(raw.guardDelaySec) || DEFAULTS.guardDelaySec)),
+      miniStyle: MINI_STYLES.indexOf(raw.miniStyle) >= 0 ? raw.miniStyle : null,
       liftMm: (function (n) { return isFinite(n) ? Math.min(200, Math.max(0, n)) : DEFAULTS.liftMm; })(parseFloat(raw.liftMm))
     };
     if (c.yellowAt < c.greenAt) { var t = c.yellowAt; c.yellowAt = c.greenAt; c.greenAt = t; }
@@ -313,7 +315,7 @@
     svc.setStyle = function (name) {
       if (MINI_STYLES.indexOf(name) < 0) name = 'number';
       svc.miniStyle = name;
-      try { localStorage.setItem('vacuumGaugeMiniStyle', name); } catch (e) {}
+      if (!svc.panel) { try { localStorage.setItem('vacuumGaugeMiniStyle', name); } catch (e) {} }
       if (svc.mini) { svc.buildMini(); svc.renderMini(); }
     };
 
@@ -439,7 +441,8 @@
       guardMode: $('vg-mode').value,
       minVac: $('vg-min').value,
       guardDelaySec: $('vg-delay').value,
-      liftMm: $('vg-lift').value
+      liftMm: $('vg-lift').value,
+      miniStyle: svc.miniStyle
     });
   }
 
@@ -476,6 +479,32 @@
       note = 'This ncSender version cannot read the gauge in the background, so this screen reads it directly and the job check is not active. Update ncSender to 2.0.225 or newer to enable it.';
     }
     $('vg-note').textContent = note;
+    var panel = !!(reading && reading.overlay);
+    if (panel !== svc.panel) {
+      svc.panel = panel;
+      if (panel) {
+        // ncSender Pro shows the gauge as its own floating panel. Drop the
+        // legacy pinned gauge so there are not two of them.
+        if (svc.mini) svc.unpin();
+        try { localStorage.removeItem('vacuumGaugeMiniPinned'); } catch (e) {}
+        var serverStyle = reading.cfg && MINI_STYLES.indexOf(reading.cfg.miniStyle) >= 0 ? reading.cfg.miniStyle : 'number';
+        var localStyle = null;
+        try { localStyle = localStorage.getItem('vacuumGaugeMiniStyle'); localStorage.removeItem('vacuumGaugeMiniStyle'); } catch (e) {}
+        if (serverStyle === 'number' && MINI_STYLES.indexOf(localStyle) > 0) {
+          // Carry the style chosen for the old pinned gauge over to the panel, once.
+          svc.miniStyle = localStyle;
+          var moved = {}; for (var mk in svc.cfg) moved[mk] = svc.cfg[mk];
+          moved.miniStyle = localStyle;
+          fetch(apiBase() + '/api/plugins/' + PLUGIN_ID + '/settings', {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(moved)
+          }).then(function (res) { if (res.ok) svc.cfg = moved; }).catch(function () {});
+        } else {
+          svc.miniStyle = serverStyle;
+        }
+      }
+      $('vg-pin').style.display = panel ? 'none' : '';
+      $('vg-panel-note').style.display = panel ? '' : 'none';
+    }
     $('vg-pin').textContent = svc.mini ? 'Unpin mini gauge' : 'Pin mini gauge';
     if (document.activeElement !== $('vg-style')) $('vg-style').value = svc.miniStyle;
     return true;
@@ -489,11 +518,13 @@
     .catch(function () { return {}; })
     .then(function (raw) {
       svc.cfg = normalize(raw);
+      if (svc.cfg.miniStyle) svc.miniStyle = svc.cfg.miniStyle; else svc.cfg.miniStyle = svc.miniStyle;
       if (document.body.contains(root)) { drawScale(svc.cfg); fillForm(svc.cfg); }
       svc.subscribe(render);
       var pinned = false;
       try { pinned = localStorage.getItem('vacuumGaugeMiniPinned') === '1'; } catch (e) {}
-      if (pinned && window.parent === window) svc.pin();
+      // Wait for the first reading: on ncSender Pro the official panel replaces this.
+      if (pinned && window.parent === window) setTimeout(function () { if (!svc.panel && !svc.mini) svc.pin(); }, 1500);
     });
 
   $('vg-save').addEventListener('click', function () {
@@ -521,6 +552,16 @@
   $('vg-style').value = svc.miniStyle;
   $('vg-style').addEventListener('change', function () {
     svc.setStyle($('vg-style').value);
+    if (svc.panel) {
+      // Floating panel: the style is a plugin setting, shared by every screen.
+      var next = {}; for (var k in svc.cfg) next[k] = svc.cfg[k];
+      next.miniStyle = svc.miniStyle;
+      fetch(apiBase() + '/api/plugins/' + PLUGIN_ID + '/settings', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next)
+      }).then(function (res) { if (res.ok) { svc.cfg = next; say('Style saved'); } else say('Could not save the style'); })
+        .catch(function () { say('Could not save the style'); });
+      return;
+    }
     if (!svc.mini) svc.pin();          // choosing a style shows the mini gauge
     $('vg-pin').textContent = 'Unpin mini gauge';
   });

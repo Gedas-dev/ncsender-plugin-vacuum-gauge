@@ -12,6 +12,7 @@
 
 var VG_INHG_PER_KPA = 0.2953;
 var VG_STALE_MS = 3000;
+var VG_MINI_STYLES = ['number', 'dial', 'bar', 'slim', 'block'];
 
 var VG = {
   cfg: null,
@@ -29,7 +30,8 @@ var VG = {
   lastAction: null,
   lastActionAt: 0,
   seq: null,
-  lastStop: null
+  lastStop: null,
+  summary: null
 };
 
 function vgNum(v, fallback, min, max) {
@@ -61,7 +63,8 @@ function buildInitialConfig(raw) {
     guardMode: mode,
     minVac: vgVac(raw.minVac, -10),
     guardDelaySec: vgNum(raw.guardDelaySec, 2, 0.5, 30),
-    liftMm: vgNum(raw.liftMm, 20, 0, 200)
+    liftMm: vgNum(raw.liftMm, 20, 0, 200),
+    miniStyle: VG_MINI_STYLES.indexOf(raw.miniStyle) >= 0 ? raw.miniStyle : 'number'
   };
   VG.cfg = cfg;
   return cfg;
@@ -172,6 +175,7 @@ function vgGuard(now) {
 
   VG.actedThisEpisode = true;
   VG.lastActionAt = now;
+  vgOverlayShow();
   var details = { 'Reading': vgFmt(VG.inHg), 'Minimum': vgFmt(cfg.minVac) };
   var machine = String(state.machineStatus || '');
   if (cfg.guardMode === 'stop') {
@@ -283,11 +287,30 @@ function vgStopStep(now) {
   if (elapsed >= VG_STOP_TIMEOUT_MS) vgFinishStop(now, 'timeout', 0);
 }
 
+// ---- Floating panel (ncSender Pro 2.0.317+) -----------------------------
+// The panel page (overlay.html) polls onRequest for its data. Here the script
+// only keeps the short text shown when the panel is shrunk to a chip, and
+// brings the panel back on every screen when the vacuum check acts.
+
+function vgOverlaySummary(now) {
+  if (!pluginContext.overlay) return;
+  var fresh = VG.lastOkAt > 0 && now - VG.lastOkAt <= VG_STALE_MS;
+  var text = fresh ? vgFmt(VG.inHg) : 'No signal';
+  if (text === VG.summary) return;
+  VG.summary = text;
+  pluginContext.overlay.set({ summary: text });
+}
+
+function vgOverlayShow() {
+  try { if (pluginContext.overlay) pluginContext.overlay.show(); } catch (e) { VG.guardError = String(e && e.message ? e.message : e); }
+}
+
 function vgTick() {
   var now = Date.now();
   try { vgPoll(now); } catch (e) { VG.busy = false; VG.lastError = String(e && e.message ? e.message : e); }
   try { vgGuard(now); } catch (e2) { VG.guardError = String(e2 && e2.message ? e2.message : e2); }
   try { vgStopStep(now); } catch (e3) { VG.seq = null; VG.guardError = String(e3 && e3.message ? e3.message : e3); }
+  try { vgOverlaySummary(now); } catch (e4) { VG.guardError = String(e4 && e4.message ? e4.message : e4); }
 }
 
 // Called by ncSender for POST /api/plugins/community.vacuum-gauge/request
@@ -307,6 +330,7 @@ function onRequest(payload) {
   return {
     ok: fresh,
     serverPolling: !!pluginContext.http,
+    overlay: !!pluginContext.overlay,
     inHg: fresh ? VG.inHg : null,
     kPa: fresh ? VG.inHg / VG_INHG_PER_KPA : null,
     volts: fresh ? VG.volts : null,
