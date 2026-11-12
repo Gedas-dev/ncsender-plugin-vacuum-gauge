@@ -18,7 +18,7 @@ The mini gauge is optional. Pin it and it floats on the main screen: drag it any
 
 - M5Stack ATOM Lite (ESP32)
 - M5Stack Tube / Air Pressure Unit (U130), -100 to 200 kPa
-- USB-C data cable and 5 V USB power, or 5 V from the SuperLongBoard: see [Power from the SLB 5 V (PDF)](docs/Power-from-SLB-5V.pdf)
+- USB-C data cable and 5 V USB power, or 5 V from the SLB-EXT through a USB-C cable: see [Power from the SLB-EXT (PDF)](docs/Power-from-SLB-5V.pdf)
 - Silicone tube 2.5 x 4 mm, a 1/4" to 5/32" push-in reducer, 1/4" air tube, and a 1/4" tee
 
 ## Install
