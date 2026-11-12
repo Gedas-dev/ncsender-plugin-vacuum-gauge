@@ -50,7 +50,6 @@ jobs:
           (cd tmp && zip -r "../dist/${ID}_${TAG}.zip" "$ID")
           cp firmware/VacGauge/VacGauge.ino dist/
           cp docs/Vacuum-Gauge-Install-Guide.pdf dist/
-          cp docs/Power-from-SLB-5V.pdf dist/
           ls -lh dist/
 
       - name: Create or update release
@@ -61,6 +60,8 @@ jobs:
           TAG="${{ steps.info.outputs.TAG }}"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber --repo "$GITHUB_REPOSITORY"
+            # The separate power sheet is now page 3 of the install guide.
+            gh release delete-asset "$TAG" Power-from-SLB-5V.pdf --yes --repo "$GITHUB_REPOSITORY" || true
             gh release edit "$TAG" --title "$NAME $TAG" --notes-file latest_release.md --repo "$GITHUB_REPOSITORY"
           else
             # A version like 1.2.0-beta.1 is published as a pre-release, so
