@@ -5,62 +5,70 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Vacuum Gauge</title>
 <style>
-  /* Floating panel for ncSender Pro. Runs in its own frame, polls the plugin
-     script for the latest reading and draws it in the chosen style. */
-  :root {
-    --bg: var(--color-surface, #18222b);
-    --text: var(--color-text-primary, #eef2f5);
-    --muted: var(--color-text-secondary, #9aa7b3);
-    --line: var(--color-border, #34414d);
-    --zone: #7d8a96;
-  }
-  html[data-theme="light"] { --bg: var(--color-surface, #ffffff); --text: var(--color-text-primary, #1c2630); --muted: var(--color-text-secondary, #5b6975); --line: var(--color-border, #d5dce2); }
+  /* Mini gauge for ncSender Pro's floating panel (frameless).
+     The panel box is fixed at 320 x 210. The gauge is designed at 230 x 150
+     and scaled to the chosen size, anchored to the bottom-right of the box.
+     The plugin script sets the panel "shape" to the same rectangle, so the
+     empty part of the box is click-through. */
   * { box-sizing: border-box; }
-  html, body { height: 100%; margin: 0; }
-  body { background: var(--bg); color: var(--text); font-family: var(--font-family, system-ui, sans-serif); overflow: hidden; user-select: none; -webkit-user-select: none; }
-  #root { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6px 10px; gap: 2px; }
+  html, body { height: 100%; margin: 0; background: transparent; overflow: hidden; }
+  body { font-family: var(--font-family, system-ui, sans-serif); user-select: none; -webkit-user-select: none; }
+  #gauge {
+    position: fixed; right: 0; bottom: 0; width: 230px; height: 150px;
+    transform-origin: 100% 100%;
+    --zone: #7d8a96; --on-zone: #ffffff;
+    --text: #f2f5f8; --muted: #9aa7b3;
+    background: rgba(18, 26, 34, 0.94); color: var(--text);
+    border: 2px solid rgba(255, 255, 255, 0.18); border-radius: 12px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 20px 10px 6px; gap: 2px; cursor: grab;
+  }
+  html[data-theme="light"] #gauge { --text: #1c2630; --muted: #5b6975; background: rgba(255, 255, 255, 0.96); border-color: rgba(0, 0, 0, 0.18); }
+  #gauge.z-red { border-color: var(--zone); }
+  .tools { position: absolute; top: 2px; right: 4px; display: flex; gap: 2px; }
+  .tools button { width: 30px; height: 30px; border: 0; background: none; color: inherit; opacity: .7; font-size: 17px; line-height: 1; cursor: pointer; border-radius: 6px; }
+  .tools button:hover { opacity: 1; background: rgba(127, 127, 127, 0.2); }
   .label { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: .06em; white-space: nowrap; }
   .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--zone); flex: none; }
   .value { display: flex; align-items: baseline; gap: 6px; line-height: 1; }
-  .num { font-weight: 700; font-variant-numeric: tabular-nums; font-size: min(17vw, 34vh); }
+  .num { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 39px; }
   .unit { font-size: 12px; color: var(--muted); }
   .sub { font-size: 10px; color: var(--muted); text-align: center; min-height: 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  svg { display: block; width: min(78vw, 150vh); height: auto; }
+  svg { display: block; width: 150px; height: auto; }
   .bar { position: relative; width: 86%; height: 10px; margin: 6px 0 2px; }
   .bar .segs { display: flex; height: 100%; border-radius: 5px; overflow: hidden; }
   .bar .segs span:nth-child(1) { background: #e5484d; } .bar .segs span:nth-child(2) { background: #f5b83d; } .bar .segs span:nth-child(3) { background: #3fb950; flex: 1; }
-  .bar .mark { position: absolute; top: -4px; bottom: -4px; width: 4px; margin-left: -2px; border-radius: 2px; background: var(--text); box-shadow: 0 0 0 1.5px var(--bg); transition: left .3s ease-out; }
-  /* style: dial */
-  .s-dial .num { font-size: min(11vw, 20vh); }
-  /* style: bar */
-  .s-bar .num { font-size: min(14vw, 26vh); }
-  /* style: slim */
-  .s-slim #root { flex-direction: row; gap: 8px; }
-  .s-slim .num { font-size: min(12vw, 30vh); }
+  .bar .mark { position: absolute; top: -4px; bottom: -4px; width: 4px; margin-left: -2px; border-radius: 2px; background: var(--text); box-shadow: 0 0 0 1.5px rgba(18, 26, 34, 0.9); transition: left .3s ease-out; }
+  .s-dial { padding-top: 8px !important; }
+  .s-dial .num { font-size: 24px; }
+  .s-dial .label { align-self: flex-start; }
+  .s-bar .num { font-size: 32px; }
+  .s-slim { flex-direction: row !important; gap: 8px !important; }
+  .s-slim .num { font-size: 28px; }
   .s-slim .sub { display: none; }
-  /* style: block */
-  .s-block body, body.s-block { background: var(--zone); }
-  body.s-block { color: var(--on-zone, #fff); }
-  body.s-block .unit, body.s-block .sub { color: inherit; opacity: .8; }
-  body.s-block .dot { background: currentColor; }
-  body.s-block .num { font-size: min(24vw, 46vh); }
+  #gauge.s-block { background: var(--zone); color: var(--on-zone); border-color: rgba(0, 0, 0, 0.25); }
+  .s-block .unit, .s-block .sub { color: inherit; opacity: .8; }
+  .s-block .dot { background: currentColor; }
+  .s-block .num { font-size: 52px; }
 </style>
 </head>
 <body>
-<div id="root"></div>
+<div id="gauge"></div>
 <script>
 (function () {
   var PLUGIN_ID = '__PLUGIN_ID__';
   var PORT = '__SERVER_PORT__';
   var STYLES = ['number', 'dial', 'bar', 'slim', 'block'];
+  var BASE_W = 230, MIN_W = 140, MAX_W = 320;
   var ZONES = {
     green:  { label: 'HOLDING',   color: '#3fb950', on: '#0b1410' },
     yellow: { label: 'MARGINAL',  color: '#f5b83d', on: '#1a1300' },
     red:    { label: 'TOO WEAK',  color: '#e5484d', on: '#ffffff' },
     off:    { label: 'NO SIGNAL', color: '#7d8a96', on: '#ffffff' }
   };
-  var root = document.getElementById('root');
-  var built = null, busy = false, fails = 0, lastCfg = { greenAt: -15, yellowAt: -8, miniStyle: 'number' };
+  var gauge = document.getElementById('gauge');
+  var built = null, busy = false, fails = 0, saving = false;
+  var lastCfg = { greenAt: -15, yellowAt: -8, miniStyle: 'number', miniSize: BASE_W };
 
   function apiBase() {
     var host = '', proto = 'http:';
@@ -72,7 +80,7 @@
     if (!port) { try { port = location.port || window.parent.location.port; } catch (e3) {} }
     return proto + '//' + host + (port ? ':' + port : '');
   }
-  var API = apiBase() + '/api/plugins/' + (PLUGIN_ID.indexOf('__') === 0 ? 'community.vacuum-gauge' : PLUGIN_ID) + '/request';
+  var PLUGIN = apiBase() + '/api/plugins/' + (PLUGIN_ID.indexOf('__') === 0 ? 'community.vacuum-gauge' : PLUGIN_ID);
 
   function frac(v) { return Math.min(30, Math.max(0, -v)) / 30; }
   function zoneKey(r, cfg) {
@@ -82,7 +90,26 @@
     return 'red';
   }
 
+  // Change one saved setting (style, or unpin). Saving restarts the plugin
+  // script, which then applies the new state on every screen.
+  function saveSetting(patch) {
+    if (saving) return;
+    saving = true;
+    fetch(PLUGIN + '/settings', { cache: 'no-store' })
+      .then(function (res) { return res.ok ? res.json() : {}; })
+      .then(function (cur) {
+        var next = {}; for (var k in cur) next[k] = cur[k];
+        for (var p in patch) next[p] = patch[p];
+        return fetch(PLUGIN + '/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next) });
+      })
+      .catch(function () {})
+      .then(function () { saving = false; });
+  }
+
   function build(style) {
+    var tools = '<div class="tools">' +
+      '<button type="button" id="b-style" title="Change style" aria-label="Change mini gauge style">&#8635;</button>' +
+      '<button type="button" id="b-unpin" title="Unpin" aria-label="Unpin mini gauge">&times;</button></div>';
     var label = '<div class="label"><span class="dot"></span><span id="lab">VACUUM</span></div>';
     var value = '<div class="value"><span class="num" id="num">--.-</span><span class="unit">inHg</span></div>';
     var sub = '<div class="sub" id="sub"></div>';
@@ -103,21 +130,38 @@
     } else {
       html = label + value + sub;
     }
-    root.innerHTML = html;
-    document.body.className = 's-' + style;
+    gauge.innerHTML = tools + html;
     built = style;
+    el('b-style').addEventListener('click', function () {
+      var next = STYLES[(STYLES.indexOf(built) + 1) % STYLES.length];
+      lastCfg.miniStyle = next;
+      build(next); render(lastReading);
+      saveSetting({ miniStyle: next });
+    });
+    el('b-unpin').addEventListener('click', function () {
+      gauge.style.display = 'none';
+      saveSetting({ pinned: false });
+    });
   }
 
   function el(id) { return document.getElementById(id); }
+  var lastReading = null;
 
   function render(r) {
-    if (r && r.cfg) lastCfg = r.cfg;
+    lastReading = r;
+    if (r && r.cfg && !saving) lastCfg = r.cfg;
     var cfg = lastCfg;
     var style = STYLES.indexOf(cfg.miniStyle) >= 0 ? cfg.miniStyle : 'number';
     if (built !== style) build(style);
+    if (!saving) gauge.style.display = cfg.pinned === false ? 'none' : '';
+    var size = Math.min(MAX_W, Math.max(MIN_W, parseFloat(cfg.miniSize) || BASE_W));
+    var k = size / BASE_W;
+    gauge.style.transform = 'scale(' + k.toFixed(4) + ')';
+    gauge.style.borderRadius = (12 / k).toFixed(1) + 'px';
     var key = zoneKey(r, cfg), z = ZONES[key], ok = key !== 'off';
-    document.documentElement.style.setProperty('--zone', z.color);
-    document.documentElement.style.setProperty('--on-zone', z.on);
+    gauge.className = 's-' + style + ' z-' + key;
+    gauge.style.setProperty('--zone', z.color);
+    gauge.style.setProperty('--on-zone', z.on);
     el('lab').textContent = z.label;
     el('num').textContent = ok ? r.inHg.toFixed(1) : '--.-';
     var sub = '';
@@ -143,14 +187,15 @@
   function tick() {
     if (busy) return;
     busy = true;
-    fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'status' }), cache: 'no-store' })
+    fetch(PLUGIN + '/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'status' }), cache: 'no-store' })
       .then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
       .then(function (r) { fails = 0; render(r); })
-      .catch(function () { fails++; if (fails >= 3) render({ ok: false, error: 'Cannot reach ncSender', cfg: null }); })
+      .catch(function () { fails++; if (fails >= 3) render({ ok: false, error: 'Cannot reach ncSender' }); })
       .then(function () { busy = false; });
   }
 
   build('number');
+  render(null);
   tick();
   setInterval(tick, 500);
 })();

@@ -1,13 +1,14 @@
 ## What's Changed
 
-**Beta. The floating panel uses a ncSender Pro feature that could not be tested outside ncSender Pro. Please report how it behaves.**
+**Beta. The mini gauge now uses a ncSender Pro feature that could not be tested outside ncSender Pro. Please report how it behaves.**
 
 ### ✨ New
-- **Floating gauge panel** (ncSender Pro 2.0.317 or newer): the gauge now shows on the main screen by itself, on every screen and remote browser, without opening the plugin first. Drag it by its title bar; the position is remembered per screen
-- A **Vacuum Gauge Panel** button on the Plugins tab brings the panel back if you closed it
-- The panel style (Number, Dial, Bar, Slim, Colour block) is now a plugin setting, so it is the same on every screen
-- When the vacuum check acts, the panel is brought back on every screen
-- On ncSender without floating panels, the pinned mini gauge works as before
+- **Pin stays pinned** (ncSender Pro 2.0.317 or newer): a pinned mini gauge shows on every screen by itself, after a restart and on remote browsers too, until you unpin it
+- **Size**: a Size slider in the Vacuum Gauge window makes the mini gauge smaller or larger
+- **Pin / Unpin** button is back in the Vacuum Gauge window. The × on the mini gauge also unpins it
+- The style and size are plugin settings, so they are the same on every screen
+- The separate "Vacuum Gauge Panel" button from beta 1 is removed
+- On ncSender without floating panels, the pinned mini gauge works as before, now with the Size slider
 
 ### 📦 Install
-Download `community.vacuum-gauge_v1.3.0-beta.1.zip` below. In ncSender open Plugins → Install from a ZIP file. Do not unzip it.
+Download `community.vacuum-gauge_v1.3.0-beta.2.zip` below. In ncSender open Plugins → Install from a ZIP file. Do not unzip it.

@@ -1,7 +1,7 @@
 {
   "id": "community.vacuum-gauge",
   "name": "Vacuum Gauge",
-  "version": "1.3.0-beta.1",
+  "version": "1.3.0-beta.2",
   "minAppVersion": "2.0.0",
   "platforms": {
     "v2": "2.0.225",
@@ -27,19 +27,16 @@
       "label": "Vacuum Gauge",
       "icon": "icon.svg",
       "clientOnly": true
-    },
-    {
-      "id": "show-overlay",
-      "label": "Vacuum Gauge Panel",
-      "icon": "icon.svg"
     }
   ],
   "overlay": {
     "page": "overlay.html",
     "title": "Vacuum",
-    "area": "viewer",
+    "area": "screen",
     "corner": "bottom-right",
-    "width": 230,
-    "height": 150
+    "frame": false,
+    "width": 320,
+    "height": 210,
+    "shape": "inset(60px 0px 0px 90px round 12px)"
   }
 }

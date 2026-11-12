@@ -13,6 +13,8 @@
 var VG_INHG_PER_KPA = 0.2953;
 var VG_STALE_MS = 3000;
 var VG_MINI_STYLES = ['number', 'dial', 'bar', 'slim', 'block'];
+// Floating panel box (must match "overlay" in manifest.json) and its base design size.
+var VG_PANEL_W = 320, VG_PANEL_H = 210, VG_PANEL_MIN_W = 140, VG_BASE_W = 230, VG_BASE_H = 150;
 
 var VG = {
   cfg: null,
@@ -31,7 +33,8 @@ var VG = {
   lastActionAt: 0,
   seq: null,
   lastStop: null,
-  summary: null
+  summary: null,
+  panelApplied: false
 };
 
 function vgNum(v, fallback, min, max) {
@@ -64,7 +67,9 @@ function buildInitialConfig(raw) {
     minVac: vgVac(raw.minVac, -10),
     guardDelaySec: vgNum(raw.guardDelaySec, 2, 0.5, 30),
     liftMm: vgNum(raw.liftMm, 20, 0, 200),
-    miniStyle: VG_MINI_STYLES.indexOf(raw.miniStyle) >= 0 ? raw.miniStyle : 'number'
+    miniStyle: VG_MINI_STYLES.indexOf(raw.miniStyle) >= 0 ? raw.miniStyle : 'number',
+    miniSize: Math.round(vgNum(raw.miniSize, 230, VG_PANEL_MIN_W, VG_PANEL_W)),
+    pinned: raw.pinned !== false
   };
   VG.cfg = cfg;
   return cfg;
@@ -288,9 +293,31 @@ function vgStopStep(now) {
 }
 
 // ---- Floating panel (ncSender Pro 2.0.317+) -----------------------------
-// The panel page (overlay.html) polls onRequest for its data. Here the script
-// only keeps the short text shown when the panel is shrunk to a chip, and
-// brings the panel back on every screen when the vacuum check acts.
+// The panel page (overlay.html) polls onRequest for its data. The panel is
+// frameless: the page draws the gauge at the chosen size in the bottom-right
+// of a fixed 320 x 210 box, and "shape" tells ncSender which part of that box
+// is the gauge, so the rest stays click-through.
+//
+// "Pinned" is a plugin setting. Saving a setting restarts this script, so the
+// state is applied once after every start: pinned shows the panel on every
+// screen, unpinned hides it on every screen.
+
+function vgPanelShape(size) {
+  var w = Math.min(VG_PANEL_W, Math.max(VG_PANEL_MIN_W, size));
+  var h = Math.round(w * VG_BASE_H / VG_BASE_W);
+  return 'inset(' + (VG_PANEL_H - h) + 'px 0px 0px ' + (VG_PANEL_W - w) + 'px round 12px)';
+}
+
+function vgPanelApply() {
+  if (VG.panelApplied || !pluginContext.overlay || !VG.cfg) return;
+  VG.panelApplied = true;
+  if (VG.cfg.pinned) {
+    pluginContext.overlay.set({ shape: vgPanelShape(VG.cfg.miniSize) });
+    pluginContext.overlay.show();
+  } else {
+    pluginContext.overlay.hide();
+  }
+}
 
 function vgOverlaySummary(now) {
   if (!pluginContext.overlay) return;
@@ -302,7 +329,8 @@ function vgOverlaySummary(now) {
 }
 
 function vgOverlayShow() {
-  try { if (pluginContext.overlay) pluginContext.overlay.show(); } catch (e) { VG.guardError = String(e && e.message ? e.message : e); }
+  // Only a pinned gauge is brought back; an unpinned one stays hidden.
+  try { if (pluginContext.overlay && VG.cfg && VG.cfg.pinned) pluginContext.overlay.show(); } catch (e) { VG.guardError = String(e && e.message ? e.message : e); }
 }
 
 function vgTick() {
@@ -310,6 +338,7 @@ function vgTick() {
   try { vgPoll(now); } catch (e) { VG.busy = false; VG.lastError = String(e && e.message ? e.message : e); }
   try { vgGuard(now); } catch (e2) { VG.guardError = String(e2 && e2.message ? e2.message : e2); }
   try { vgStopStep(now); } catch (e3) { VG.seq = null; VG.guardError = String(e3 && e3.message ? e3.message : e3); }
+  try { vgPanelApply(); } catch (e5) { VG.guardError = String(e5 && e5.message ? e5.message : e5); }
   try { vgOverlaySummary(now); } catch (e4) { VG.guardError = String(e4 && e4.message ? e4.message : e4); }
 }
 
