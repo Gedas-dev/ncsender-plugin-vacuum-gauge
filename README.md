@@ -1,6 +1,6 @@
 # Vacuum Gauge for ncSender
 
-**Version 1.2.1** · [Download the latest release](https://github.com/Gedas-dev/ncsender-plugin-vacuum-gauge/releases/latest)
+**Version 1.3.0** · [Download the latest release](https://github.com/Gedas-dev/ncsender-plugin-vacuum-gauge/releases/latest)
 
 A WiFi vacuum gauge for a CNC vacuum table. An M5Stack ATOM Lite reads a pressure sensor on the vacuum line, and a plugin shows the reading inside [ncSender](https://github.com/siganberg/ncSender). If the vacuum drops during a job it can warn you, feed-hold, pause and park Z with the spindle stopped, or stop the job and raise Z.
 
@@ -12,7 +12,7 @@ A WiFi vacuum gauge for a CNC vacuum table. An M5Stack ATOM Lite reads a pressur
 
 ![Mini gauge styles: Number, Dial, Bar, Slim, Colour block](docs/mini-gauge-styles.png)
 
-The mini gauge is optional. Pin it and it floats on the main screen: drag it anywhere, for example over the visualizer, and pick one of five styles. Unpin it to use only the Vacuum Gauge window.
+The mini gauge is optional. Pin it and it stays on the main screen of every device, also after a restart and on remote browsers, until you unpin it. Drag it anywhere, pick one of five styles, and set its size with the Size slider. (Staying pinned everywhere needs ncSender Pro 2.0.317 or newer.)
 
 ## Parts
 
