@@ -34,7 +34,12 @@ var VG = {
   seq: null,
   lastStop: null,
   summary: null,
-  panelApplied: false
+  panelApplied: false,
+  ip: null,          // gauge's own IP, learned from its reply
+  ipFailSince: 0,
+  // Connection health since the plugin started, shown in the gauge window.
+  diag: { since: Date.now(), uptimeSec: null, rssi: null, minRssi: null, restarts: 0, lastRestartAt: 0,
+          dropouts: 0, lastDropAt: 0, lastDropMs: 0, lastDropError: null, failedPolls: 0, online: false }
 };
 
 function vgNum(v, fallback, min, max) {
@@ -85,6 +90,34 @@ function vgBaseUrl(device) {
 
 // Accepts this project's firmware ({ inHg, kPa }) and an ESPHome sensor
 // endpoint ({ value, state: "-18.4 inHg" }).
+// The gauge can report its own IP address. Only a private network address is
+// accepted, so a reply can never point the plugin at an outside host.
+function vgPrivateIp(ip) {
+  if (typeof ip !== 'string') return null;
+  var m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(ip);
+  if (!m) return null;
+  var a = +m[1], b = +m[2], c = +m[3], d = +m[4];
+  if (a > 255 || b > 255 || c > 255 || d > 255) return null;
+  var priv = a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254);
+  return priv ? ip : null;
+}
+
+// A name such as vac-gauge.local has to be looked up again every few minutes,
+// and that lookup sometimes fails for several seconds. Once the gauge has told
+// us its IP address, poll that directly. If the IP stops answering (the router
+// gave the gauge a new one), go back to the name.
+var VG_IP_RETRY_NAME_MS = 6000;
+
+function vgTarget() {
+  var target = vgBaseUrl(VG.cfg ? VG.cfg.device : '');
+  if (!target) return null;
+  var m = /^(https?:\/\/)([^\/:]+)(:\d+)?$/i.exec(target.origin);
+  var isIp = m && /^\d{1,3}(\.\d{1,3}){3}$/.test(m[2]);
+  target.viaIp = false;
+  if (m && !isIp && VG.ip) { target.origin = m[1] + VG.ip + (m[3] || ''); target.viaIp = true; }
+  return target;
+}
+
 function vgParse(body) {
   var j = JSON.parse(body);
   var v = null;
@@ -98,7 +131,20 @@ function vgParse(body) {
     else if (unit.indexOf('psi') >= 0) v = v * 2.036;
   }
   if (typeof v !== 'number' || !isFinite(v)) throw new Error('No pressure value in the reply');
-  return { inHg: v, volts: typeof j.volts === 'number' ? j.volts : null };
+  return {
+    inHg: v,
+    volts: typeof j.volts === 'number' ? j.volts : null,
+    uptimeSec: typeof j.uptimeSec === 'number' ? j.uptimeSec : null,
+    rssi: typeof j.rssi === 'number' ? j.rssi : null,
+    ip: vgPrivateIp(j.ip)
+  };
+}
+
+function vgIpFailed(target) {
+  if (!target || !target.viaIp) return;
+  var t = Date.now();
+  if (!VG.ipFailSince) VG.ipFailSince = t;
+  else if (t - VG.ipFailSince >= VG_IP_RETRY_NAME_MS) { VG.ip = null; VG.ipFailSince = 0; }
 }
 
 function vgPoll(now) {
@@ -110,7 +156,7 @@ function vgPoll(now) {
   }
   if (VG.busy && now - VG.busySince < 5000) return;
   if (now - VG.lastPollAt < cfg.pollMs) return;
-  var target = vgBaseUrl(cfg.device);
+  var target = vgTarget();
   if (!target) { VG.lastError = 'Gauge address is not valid'; return; }
   VG.lastPollAt = now;
   VG.busy = true;
@@ -119,19 +165,34 @@ function vgPoll(now) {
     { url: target.origin + target.path, timeoutMs: 2000 },
     function (res) {
       VG.busy = false;
+      var d = VG.diag;
       if (!res || !res.ok) {
         VG.lastError = res && res.error ? String(res.error)
           : 'Gauge answered HTTP ' + (res ? res.status : '?');
+        d.failedPolls++;
+        vgIpFailed(target);
         return;
       }
       try {
         var r = vgParse(res.body);
+        var t = Date.now();
+        // The gauge's own uptime going backwards means it restarted (power).
+        if (r.uptimeSec !== null) {
+          if (d.uptimeSec !== null && r.uptimeSec + 5 < d.uptimeSec) { d.restarts++; d.lastRestartAt = t; }
+          d.uptimeSec = r.uptimeSec;
+        }
+        if (r.rssi !== null) { d.rssi = r.rssi; if (d.minRssi === null || r.rssi < d.minRssi) d.minRssi = r.rssi; }
+        if (!d.online && d.lastDropAt) d.lastDropMs = t - d.lastDropAt;
+        d.online = true;
         VG.inHg = r.inHg;
         VG.volts = r.volts;
-        VG.lastOkAt = Date.now();
+        VG.lastOkAt = t;
         VG.lastError = null;
+        VG.ipFailSince = 0;
+        if (r.ip) VG.ip = r.ip;
       } catch (e) {
         VG.lastError = 'Unexpected reply from the gauge';
+        d.failedPolls++;
       }
     });
   if (!started) { VG.busy = false; VG.lastError = 'Gauge address is not valid'; }
@@ -328,6 +389,18 @@ function vgOverlaySummary(now) {
   pluginContext.overlay.set({ summary: text });
 }
 
+// Count each time the reading goes from live to lost.
+function vgDiagStep(now) {
+  var d = VG.diag;
+  if (d.online && VG.lastOkAt > 0 && now - VG.lastOkAt > VG_STALE_MS) {
+    d.online = false;
+    d.dropouts++;
+    d.lastDropAt = VG.lastOkAt;
+    d.lastDropMs = 0;
+    d.lastDropError = VG.lastError;
+  }
+}
+
 function vgOverlayShow() {
   // Only a pinned gauge is brought back; an unpinned one stays hidden.
   try { if (pluginContext.overlay && VG.cfg && VG.cfg.pinned) pluginContext.overlay.show(); } catch (e) { VG.guardError = String(e && e.message ? e.message : e); }
@@ -338,6 +411,7 @@ function vgTick() {
   try { vgPoll(now); } catch (e) { VG.busy = false; VG.lastError = String(e && e.message ? e.message : e); }
   try { vgGuard(now); } catch (e2) { VG.guardError = String(e2 && e2.message ? e2.message : e2); }
   try { vgStopStep(now); } catch (e3) { VG.seq = null; VG.guardError = String(e3 && e3.message ? e3.message : e3); }
+  try { vgDiagStep(now); } catch (e6) { VG.guardError = String(e6 && e6.message ? e6.message : e6); }
   try { vgPanelApply(); } catch (e5) { VG.guardError = String(e5 && e5.message ? e5.message : e5); }
   try { vgOverlaySummary(now); } catch (e4) { VG.guardError = String(e4 && e4.message ? e4.message : e4); }
 }
@@ -348,7 +422,7 @@ function onRequest(payload) {
   var now = Date.now();
   if (action === 'zero') {
     if (!pluginContext.http) return { ok: false, error: 'Not available on this ncSender version' };
-    var target = vgBaseUrl(VG.cfg ? VG.cfg.device : '');
+    var target = vgTarget();
     if (!target) return { ok: false, error: 'Gauge address is not valid' };
     pluginContext.http.request({ url: target.origin + '/api/zero', method: 'POST', timeoutMs: 3000 }, function (res) {
       VG.lastZero = res && res.ok ? 'ok' : 'failed';
@@ -360,6 +434,19 @@ function onRequest(payload) {
     ok: fresh,
     serverPolling: !!pluginContext.http,
     overlay: !!pluginContext.overlay,
+    diag: {
+      runningSec: Math.round((now - VG.diag.since) / 1000),
+      gaugeUptimeSec: VG.diag.uptimeSec,
+      rssi: VG.diag.rssi,
+      minRssi: VG.diag.minRssi,
+      restarts: VG.diag.restarts,
+      dropouts: VG.diag.dropouts,
+      lastDropAgoSec: VG.diag.lastDropAt ? Math.round((now - VG.diag.lastDropAt) / 1000) : null,
+      lastDropSec: VG.diag.lastDropMs ? Math.round(VG.diag.lastDropMs / 100) / 10 : null,
+      lastDropError: VG.diag.lastDropError,
+      failedPolls: VG.diag.failedPolls,
+      ip: VG.ip
+    },
     inHg: fresh ? VG.inHg : null,
     kPa: fresh ? VG.inHg / VG_INHG_PER_KPA : null,
     volts: fresh ? VG.volts : null,

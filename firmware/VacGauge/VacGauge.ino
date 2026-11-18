@@ -99,10 +99,13 @@ void handleVacuum() {
     server.send(503, "application/json", "{\"error\":\"sensor not connected\"}");
     return;
   }
-  char buf[220];
+  // "ip" lets the ncSender plugin talk to the gauge by address, so it does not
+  // depend on the .local name being looked up again every few minutes.
+  char buf[280];
   snprintf(buf, sizeof(buf),
-    "{\"inHg\":%.2f,\"kPa\":%.2f,\"volts\":%.3f,\"zeroOffsetKpa\":%.2f,\"rssi\":%d,\"uptimeSec\":%lu,\"name\":\"%s\"}",
-    currentInHg(), currentKpa(), filteredVolts, zeroOffsetKpa, (int)WiFi.RSSI(), millis() / 1000UL, HOSTNAME);
+    "{\"inHg\":%.2f,\"kPa\":%.2f,\"volts\":%.3f,\"zeroOffsetKpa\":%.2f,\"rssi\":%d,\"uptimeSec\":%lu,\"name\":\"%s\",\"ip\":\"%s\",\"fw\":\"1.1\"}",
+    currentInHg(), currentKpa(), filteredVolts, zeroOffsetKpa, (int)WiFi.RSSI(), millis() / 1000UL, HOSTNAME,
+    WiFi.localIP().toString().c_str());
   server.send(200, "application/json", buf);
 }
 

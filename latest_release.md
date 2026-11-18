@@ -1,11 +1,11 @@
 ## What's Changed
 
+### 🔧 Fixes
+- **Reading dropping to NO SIGNAL every few minutes:** the plugin now talks to the gauge by its IP address once the gauge has reported it, so it no longer depends on the `.local` name being looked up again. This needs the updated firmware below. With older firmware, type the gauge's IP address in Gauge address
+
 ### ✨ New
-- **Pin stays pinned** (ncSender Pro 2.0.317 or newer): a pinned mini gauge shows on every screen by itself, after a restart and on remote browsers too, until you unpin it
-- **Size**: a Size slider in the Vacuum Gauge window makes the mini gauge smaller or larger
-- The × on the mini gauge unpins it; the Pin / Unpin button in the Vacuum Gauge window does the same
-- The style and size are plugin settings, so they are the same on every screen
-- On ncSender without floating panels, the pinned mini gauge works as before, now with the Size slider
+- **Connection line** in the Vacuum Gauge window: dropouts, gauge restarts, WiFi strength and the gauge's IP, with a hint about the likely cause
+- Firmware 1.1 (`VacGauge.ino` below): the gauge reports its IP address
 
 ### 📦 Install
-Download `community.vacuum-gauge_v1.3.0.zip` below. In ncSender open Plugins → Install from a ZIP file. Do not unzip it.
+Download `community.vacuum-gauge_v1.3.1.zip` below. In ncSender open Plugins → Install from a ZIP file. Do not unzip it.

@@ -7,6 +7,9 @@
   .vg-dial svg { width: 100%; max-width: 300px; height: auto; display: block; margin: 0 auto; }
   .vg-status { display: inline-flex; align-items: center; gap: 8px; margin-top: 4px; padding: 5px 12px; border-radius: 999px; font-weight: 700; font-size: 0.85rem; letter-spacing: 0.04em; border: 1px solid var(--color-border, #3a4652); }
   .vg-dot { width: 10px; height: 10px; border-radius: 50%; background: #7d8a96; }
+  .vg-diag { margin-top: 6px; font-size: 0.76rem; line-height: 1.5; color: var(--color-text-secondary, #9aa7b3); text-align: left; border-top: 1px solid var(--color-border, #3a4652); padding-top: 8px; }
+  .vg-diag b { color: var(--color-text-primary, #e8edf2); font-weight: 600; }
+  .vg-diag .vg-hint { display: block; margin-top: 4px; color: #f5b83d; }
   .vg-sub { margin-top: 8px; font-size: 0.82rem; color: var(--color-text-secondary, #9aa7b3); min-height: 2.4em; }
   .vg-form h4 { margin: 0 0 10px; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-secondary, #9aa7b3); }
   .vg-form h4 + .vg-row { margin-top: 0; }
@@ -44,6 +47,7 @@
       </svg>
       <div class="vg-status"><span class="vg-dot" id="vg-dot"></span><span id="vg-state">CONNECTING</span></div>
       <div class="vg-sub" id="vg-sub"></div>
+      <div class="vg-diag" id="vg-diag"></div>
     </div>
 
     <div class="vg-form">
@@ -472,6 +476,31 @@
     $('vg-mode-note').style.display = MODE_NOTES[m] ? '' : 'none';
   }
 
+  function dur(sec) {
+    if (sec === null || sec === undefined) return '?';
+    if (sec < 90) return Math.round(sec) + ' s';
+    if (sec < 5400) return Math.round(sec / 60) + ' min';
+    return (Math.round(sec / 360) / 10) + ' h';
+  }
+
+  // Connection health: tells a restarting gauge (power) from weak WiFi from a
+  // name lookup problem, which all look the same on the dial.
+  function diagHtml(d, cfg) {
+    if (!d) return '';
+    var wifi = d.rssi === null ? 'unknown' : d.rssi + ' dBm (' + (d.rssi >= -67 ? 'good' : d.rssi >= -75 ? 'fair' : 'weak') + ')';
+    var html = '<b>Connection</b>, last ' + dur(d.runningSec) + '<br>' +
+      'Dropouts: <b>' + d.dropouts + '</b>' + (d.lastDropAgoSec !== null ? ', last ' + dur(d.lastDropAgoSec) + ' ago' + (d.lastDropSec ? ' for ' + d.lastDropSec + ' s' : '') : '') + '<br>' +
+      'Gauge restarts: <b>' + d.restarts + '</b>' + (d.gaugeUptimeSec !== null ? ', running ' + dur(d.gaugeUptimeSec) : '') + '<br>' +
+      'WiFi: <b>' + wifi + '</b>' + (d.minRssi !== null && d.minRssi !== d.rssi ? ', lowest ' + d.minRssi : '');
+    if (d.ip) html += '<br>Gauge IP: <b>' + d.ip + '</b>' + (/\.local/i.test(String(cfg.device)) ? ' (used directly)' : '');
+    var hint = '';
+    if (d.restarts > 0) hint = 'The gauge is restarting. Its 5 V supply is probably too weak: try a USB power adapter.';
+    else if (d.minRssi !== null && d.minRssi < -75) hint = 'The WiFi signal at the gauge is weak. Move the gauge or the access point closer.';
+    else if (d.dropouts > 0 && !d.ip && /\.local/i.test(String(cfg.device))) hint = 'Dropouts without a restart: put the gauge\'s IP address in Gauge address instead of the .local name.';
+    else if (d.dropouts > 0) hint = 'Dropouts without a restart and with good signal: the network is losing the gauge for a moment.';
+    return html + (hint ? '<span class="vg-hint">' + hint + '</span>' : '');
+  }
+
   function say(text) { $('vg-msg').textContent = text || ''; }
 
   // Save one or more mini gauge settings straight away (pin, style, size).
@@ -499,6 +528,7 @@
     else if (reading && reading.guard && reading.guard.stopping) sub = 'Vacuum lost: stopping the job';
     else if (ok && reading.guard && reading.guard.weak) sub = 'Below the minimum for cutting';
     $('vg-sub').textContent = sub;
+    $('vg-diag').innerHTML = diagHtml(reading && reading.diag, cfg);
     var note = '';
     if (reading && reading.serverPolling === false) {
       note = 'This ncSender version cannot read the gauge in the background, so this screen reads it directly and the job check is not active. Update ncSender to 2.0.225 or newer to enable it.';
