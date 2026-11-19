@@ -49,6 +49,7 @@ jobs:
           cp -r plugin/. "tmp/$ID/"
           (cd tmp && zip -r "../dist/${ID}_${TAG}.zip" "$ID")
           cp firmware/VacGauge/VacGauge.ino dist/
+          cp firmware/VacDisplay/VacDisplay.ino dist/
           cp docs/Vacuum-Gauge-Install-Guide.pdf dist/
           ls -lh dist/
 

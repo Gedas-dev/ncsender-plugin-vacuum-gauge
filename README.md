@@ -31,6 +31,14 @@ If the dial says NO SIGNAL, type the ATOM's IP address in **Gauge address**.
 
 Full steps with pictures: [Install Guide (PDF)](docs/Vacuum-Gauge-Install-Guide.pdf)
 
+## Optional shop display
+
+An M5Stack CoreS3 Lite can show the vacuum on its own screen, anywhere in the shop. It reads the gauge over WiFi and does not need ncSender running. Tap the screen to switch between four full-screen views: Dial, Number, Bar and Colour block.
+
+Open [`firmware/VacDisplay/VacDisplay.ino`](firmware/VacDisplay/VacDisplay.ino) in Arduino IDE, install the **M5Unified** library, type your WiFi details and the gauge's IP address at the top, select board **M5CoreS3**, and upload.
+
+![Preview drawing of the four display views](docs/shop-display-preview.png)
+
 ## Notes
 
 - Tested on a real machine with ncSender Pro 2.0.318.
