@@ -26,14 +26,14 @@
 const char* WIFI_SSID     = "YOUR_WIFI_NAME";
 const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
 
-// The gauge: its IP address (best, for example "192.168.3.60") or its name.
+// The gauge: its IP address (best, for example "192.168.1.50") or its name.
 const char* GAUGE_HOST    = "vac-gauge.local";
 
 // Colours: green at this vacuum or stronger, red when weaker than the second.
 float GREEN_AT  = -15.0;   // inHg
 float YELLOW_AT = -8.0;    // inHg
 
-// Optional. Put the ncSender PC's IP address here (for example "192.168.3.55")
+// Optional. Put the ncSender PC's IP address here (for example "192.168.1.20")
 // and the display uses the same green and red levels as the ncSender plugin.
 // Leave it empty to use the two numbers above.
 const char* NCSENDER_HOST = "";

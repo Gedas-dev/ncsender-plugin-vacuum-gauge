@@ -29,7 +29,7 @@ The mini gauge is optional. Pin it and it stays on the main screen of every devi
 
 ### Use the IP address, not the name
 
-Put the ATOM's IP address in **Gauge address**, for example `192.168.3.205`. The name `vac-gauge.local` has to be looked up again every few minutes, and on Windows that lookup can stall and drop the reading to NO SIGNAL for a few seconds.
+Put the ATOM's IP address in **Gauge address**, for example `192.168.1.50`. The name `vac-gauge.local` has to be looked up again every few minutes, and on Windows that lookup can stall and drop the reading to NO SIGNAL for a few seconds.
 
 To keep the address from changing, set a fixed one in the firmware: put it in `STATIC_IP` at the top of `VacGauge.ino` and upload. The gauge takes the gateway and network mask from the router. Pick an address no other device uses, or reserve it in the router.
 

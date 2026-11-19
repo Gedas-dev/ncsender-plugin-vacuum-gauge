@@ -27,7 +27,7 @@ const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
 const char* HOSTNAME      = "vac-gauge";      // -> http://vac-gauge.local
 
 // Optional fixed address. Leave it empty ("") and the router chooses the address.
-// Put an address here (for example "192.168.3.205") and the gauge always uses it.
+// Put an address here (for example "192.168.1.50") and the gauge always uses it.
 // The gateway and network mask are taken from the router, so this one line is
 // all that is needed. Pick an address that no other device uses.
 const char* STATIC_IP     = "";
