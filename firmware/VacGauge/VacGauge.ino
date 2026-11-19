@@ -26,6 +26,12 @@ const char* WIFI_SSID     = "YOUR_WIFI_NAME";
 const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
 const char* HOSTNAME      = "vac-gauge";      // -> http://vac-gauge.local
 
+// Optional fixed address. Leave it empty ("") and the router chooses the address.
+// Put an address here (for example "192.168.3.205") and the gauge always uses it.
+// The gateway and network mask are taken from the router, so this one line is
+// all that is needed. Pick an address that no other device uses.
+const char* STATIC_IP     = "";
+
 const float LED_GREEN_AT  = -15.0;  // inHg: green at this vacuum or stronger
 const float LED_YELLOW_AT = -8.0;   // inHg: yellow down to here, red if weaker
 // ------------------------------------------------------
@@ -50,6 +56,7 @@ bool haveSample = false;
 unsigned long lastSampleMs = 0;
 unsigned long lastLedMs = 0;
 unsigned long wifiDownSince = 0;
+bool staticIpDone = false;
 
 void setLed(uint8_t r, uint8_t g, uint8_t b) {
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
@@ -93,6 +100,24 @@ void addCors() {
   server.sendHeader("Cache-Control", "no-store");
 }
 
+// Switch to the fixed address once the router has told us the gateway and mask.
+void applyStaticIp() {
+  if (staticIpDone || WiFi.status() != WL_CONNECTED) return;
+  staticIpDone = true;
+  if (STATIC_IP[0] == 0) return;
+  IPAddress want;
+  if (!want.fromString(STATIC_IP)) { Serial.println("STATIC_IP is not a valid address - using the router's."); return; }
+  IPAddress gw = WiFi.gatewayIP(), mask = WiFi.subnetMask(), dns = WiFi.dnsIP();
+  if (((uint32_t)want & (uint32_t)mask) != ((uint32_t)gw & (uint32_t)mask)) {
+    Serial.println("STATIC_IP is not on this network - using the router's address.");
+    return;
+  }
+  if (WiFi.localIP() == want) return;
+  WiFi.config(want, gw, mask, dns);
+  Serial.print("Fixed address set: ");
+  Serial.println(WiFi.localIP());
+}
+
 void handleVacuum() {
   addCors();
   if (!sensorPresent()) {
@@ -103,7 +128,7 @@ void handleVacuum() {
   // depend on the .local name being looked up again every few minutes.
   char buf[280];
   snprintf(buf, sizeof(buf),
-    "{\"inHg\":%.2f,\"kPa\":%.2f,\"volts\":%.3f,\"zeroOffsetKpa\":%.2f,\"rssi\":%d,\"uptimeSec\":%lu,\"name\":\"%s\",\"ip\":\"%s\",\"fw\":\"1.1\"}",
+    "{\"inHg\":%.2f,\"kPa\":%.2f,\"volts\":%.3f,\"zeroOffsetKpa\":%.2f,\"rssi\":%d,\"uptimeSec\":%lu,\"name\":\"%s\",\"ip\":\"%s\",\"fw\":\"1.2\"}",
     currentInHg(), currentKpa(), filteredVolts, zeroOffsetKpa, (int)WiFi.RSSI(), millis() / 1000UL, HOSTNAME,
     WiFi.localIP().toString().c_str());
   server.send(200, "application/json", buf);
@@ -202,6 +227,7 @@ void setup() {
     updateLed();
   }
   Serial.println();
+  applyStaticIp();
   if (WiFi.status() == WL_CONNECTED) {
     Serial.print("Connected. Open http://");
     Serial.print(WiFi.localIP());
@@ -245,6 +271,7 @@ void loop() {
     }
   } else {
     wifiDownSince = 0;
+    applyStaticIp();   // if WiFi came up after setup()
   }
 
   server.handleClient();

@@ -5,7 +5,7 @@
 
 ### ✨ New
 - **Connection line** in the Vacuum Gauge window: dropouts, gauge restarts, WiFi strength and the gauge's IP, with a hint about the likely cause
-- Firmware 1.1 (`VacGauge.ino` below): the gauge reports its IP address
+- Firmware 1.2 (`VacGauge.ino` below): the gauge reports its IP address, and has an optional fixed address (`STATIC_IP`)
 
 ### 📦 Install
 Download `community.vacuum-gauge_v1.3.1.zip` below. In ncSender open Plugins → Install from a ZIP file. Do not unzip it.
