@@ -1,7 +1,7 @@
 {
   "id": "community.vacuum-gauge",
   "name": "Vacuum Gauge",
-  "author": "Gedas-dev / Daryl",
+  "author": "Gedas-dev",
   "description": "Live vacuum-table pressure from a WiFi ESP32 gauge: a dial under Tools, a floating gauge panel on the main screen, and a low-vacuum check that can warn, pause or stop the job.",
   "category": "utility",
   "version": "1.3.0",
