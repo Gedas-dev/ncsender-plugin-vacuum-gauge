@@ -187,7 +187,7 @@
   function tick() {
     if (busy) return;
     busy = true;
-    fetch(PLUGIN + '/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'status' }), cache: 'no-store' })
+    fetch(PLUGIN + '/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'status', port: /^\d+$/.test(PORT) ? parseInt(PORT, 10) : undefined }), cache: 'no-store' })
       .then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
       .then(function (r) { fails = 0; render(r); })
       .catch(function () { fails++; if (fails >= 3) render({ ok: false, error: 'Cannot reach ncSender' }); })

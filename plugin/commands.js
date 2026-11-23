@@ -7,7 +7,8 @@
  *
  * It only uses a background timer. It does not hook the G-code or the
  * command pipeline, so a fault here cannot block machine commands. When the
- * check is set to act, it sends a feed hold, or stops the job and raises Z.
+ * check is set to act, it sends a feed hold, or stops the job and raises Z
+ * (to ncSender's Safe Z height, or by a fixed distance).
  */
 
 var VG_INHG_PER_KPA = 0.2953;
@@ -36,6 +37,9 @@ var VG = {
   summary: null,
   panelApplied: false,
   ip: null,          // gauge's own IP, learned from its reply
+  // ncSender's own Safe Z setting (mm, machine coordinates), read from its API.
+  safeZ: { value: null, at: 0, askedAt: 0, busy: false, error: null },
+  port: 8090,        // ncSender's port; the plugin pages report the real one
   ipFailSince: 0,
   // Connection health since the plugin started, shown in the gauge window.
   diag: { since: Date.now(), uptimeSec: null, rssi: null, minRssi: null, restarts: 0, lastRestartAt: 0,
@@ -71,6 +75,7 @@ function buildInitialConfig(raw) {
     guardMode: mode,
     minVac: vgVac(raw.minVac, -10),
     guardDelaySec: vgNum(raw.guardDelaySec, 2, 0.5, 30),
+    raiseTo: raw.raiseTo === 'distance' ? 'distance' : 'safez',
     liftMm: vgNum(raw.liftMm, 20, 0, 200),
     miniStyle: VG_MINI_STYLES.indexOf(raw.miniStyle) >= 0 ? raw.miniStyle : 'number',
     miniSize: Math.round(vgNum(raw.miniSize, 230, VG_PANEL_MIN_W, VG_PANEL_W)),
@@ -306,6 +311,38 @@ function vgLiftFor(z, liftMm) {
   return Math.round(Math.min(liftMm, room) * 1000) / 1000;
 }
 
+// Reads ncSender's Safe Z height (Settings, the same value $SAFEZ and Park
+// use) so the raise can go to it. Asked again every 15 s so a change in
+// ncSender is picked up. If it cannot be read, the fixed distance is used.
+var VG_SAFEZ_DEFAULT = -5, VG_SAFEZ_EVERY_MS = 15000, VG_SAFEZ_MAX_AGE_MS = 120000;
+function vgSafeZStep(now) {
+  var sz = VG.safeZ;
+  if (!pluginContext.http || !VG.cfg || VG.cfg.guardMode !== 'stop' || VG.cfg.raiseTo !== 'safez') return;
+  if (sz.busy && now - sz.askedAt < 5000) return;
+  if (sz.askedAt && now - sz.askedAt < VG_SAFEZ_EVERY_MS) return;
+  sz.busy = true;
+  sz.askedAt = now;
+  pluginContext.http.request({ url: 'http://127.0.0.1:' + VG.port + '/api/settings/safeZHeight', method: 'GET', timeoutMs: 3000 }, function (res) {
+    sz.busy = false;
+    var v = null;
+    try { if (res && res.ok) v = JSON.parse(res.body).value; } catch (e) { v = null; }
+    if (typeof v === 'string') v = parseFloat(v);
+    // ncSender only stores Safe Z once it has been changed; until then it
+    // answers "not found" and uses its default, -5 mm.
+    if (v === null && res && res.status === 404 && String(res.body || '').indexOf('safeZHeight') >= 0) v = VG_SAFEZ_DEFAULT;
+    if (typeof v === 'number' && isFinite(v)) { sz.value = Math.min(0, v); sz.at = Date.now(); sz.error = null; }
+    else sz.error = 'Could not read Safe Z from ncSender';
+  });
+}
+
+// Safe Z if it is known and fresh, otherwise null.
+function vgSafeZNow(now) {
+  var sz = VG.safeZ;
+  if (!VG.cfg || VG.cfg.raiseTo !== 'safez') return null;
+  if (sz.value === null || now - sz.at > VG_SAFEZ_MAX_AGE_MS) return null;
+  return sz.value;
+}
+
 function vgFinishStop(now, outcome, liftedMm) {
   var seq = VG.seq;
   VG.seq = null;
@@ -313,9 +350,12 @@ function vgFinishStop(now, outcome, liftedMm) {
   var details = seq.details || {};
   if (seq.line) details['Stopped at line'] = String(seq.line);
   var msg;
-  if (outcome === 'lifted') {
+  if (outcome === 'lifted' || outcome === 'safez') {
     details['Z raised'] = liftedMm + ' mm';
-    msg = 'The vacuum dropped below the minimum, so the job was stopped, the spindle was switched off and Z was raised. The job is ended, not paused. Restore the vacuum, check the workpiece, then start again from the stopped line.';
+    if (outcome === 'safez') details['Raised to'] = 'Safe Z (machine Z ' + seq.safeZ + ' mm)';
+    msg = 'The vacuum dropped below the minimum, so the job was stopped, the spindle was switched off and Z was raised' + (outcome === 'safez' ? ' to the Safe Z height' : '') + '. The job is ended, not paused. Restore the vacuum, check the workpiece, then start again from the stopped line.';
+  } else if (outcome === 'atsafez') {
+    msg = 'The vacuum dropped below the minimum, so the job was stopped and the spindle was switched off. Z was not moved: it is already at or above the Safe Z height.';
   } else if (outcome === 'nolift') {
     msg = 'The vacuum dropped below the minimum, so the job was stopped and the spindle was switched off. Z was not raised: the machine is at the top of its travel, is not homed, or the raise distance is set to 0.';
   } else if (outcome === 'alarm') {
@@ -338,8 +378,23 @@ function vgStopStep(now) {
   else seq.idleSince = 0;
 
   if (elapsed >= VG_STOP_MIN_MS && seq.idleSince && now - seq.idleSince >= VG_STOP_IDLE_MS) {
-    pluginContext.sendCommand('M5', 'M5 (Spindle off - vacuum lost)');
+    // Spindle off first; the raise follows on the next tick so the two
+    // commands cannot overtake each other.
+    if (!seq.m5Sent) { seq.m5Sent = true; pluginContext.sendCommand('M5', 'M5 (Spindle off - vacuum lost)'); return; }
     var z = state && state.mpos ? state.mpos.z : null;
+    var safeZ = vgSafeZNow(now);
+    if (safeZ !== null && typeof z === 'number' && isFinite(z)) {
+      // Go to ncSender's Safe Z height (machine coordinates). Never downwards.
+      seq.safeZ = safeZ;
+      var up = Math.round((safeZ - z) * 1000) / 1000;
+      if (up > 0.01) {
+        pluginContext.sendCommand('$J=G53 G21 G90 Z' + safeZ + ' F1500', 'Raise Z to Safe Z ' + safeZ + ' (vacuum lost)');
+        vgFinishStop(now, 'safez', up);
+      } else {
+        vgFinishStop(now, 'atsafez', 0);
+      }
+      return;
+    }
     var lift = vgLiftFor(z, VG.cfg ? VG.cfg.liftMm : 0);
     if (lift > 0) {
       var target = Math.round((z + lift) * 1000) / 1000;
@@ -411,6 +466,7 @@ function vgTick() {
   try { vgPoll(now); } catch (e) { VG.busy = false; VG.lastError = String(e && e.message ? e.message : e); }
   try { vgGuard(now); } catch (e2) { VG.guardError = String(e2 && e2.message ? e2.message : e2); }
   try { vgStopStep(now); } catch (e3) { VG.seq = null; VG.guardError = String(e3 && e3.message ? e3.message : e3); }
+  try { vgSafeZStep(now); } catch (e7) { VG.safeZ.busy = false; VG.guardError = String(e7 && e7.message ? e7.message : e7); }
   try { vgDiagStep(now); } catch (e6) { VG.guardError = String(e6 && e6.message ? e6.message : e6); }
   try { vgPanelApply(); } catch (e5) { VG.guardError = String(e5 && e5.message ? e5.message : e5); }
   try { vgOverlaySummary(now); } catch (e4) { VG.guardError = String(e4 && e4.message ? e4.message : e4); }
@@ -420,6 +476,9 @@ function vgTick() {
 function onRequest(payload) {
   var action = payload && payload.action;
   var now = Date.now();
+  // The plugin pages tell which port ncSender is on (needed to read Safe Z).
+  var port = payload ? parseInt(payload.port, 10) : NaN;
+  if (port > 0 && port < 65536 && port !== VG.port) { VG.port = port; VG.safeZ.askedAt = 0; }
   if (action === 'zero') {
     if (!pluginContext.http) return { ok: false, error: 'Not available on this ncSender version' };
     var target = vgTarget();
@@ -458,7 +517,9 @@ function onRequest(payload) {
       lastAction: VG.lastAction,
       lastActionAgoMs: VG.lastActionAt ? now - VG.lastActionAt : null,
       stopping: !!VG.seq,
-      lastStop: VG.lastStop
+      lastStop: VG.lastStop,
+      safeZ: vgSafeZNow(now),
+      safeZError: VG.safeZ.value === null ? VG.safeZ.error : null
     },
     cfg: VG.cfg
   };

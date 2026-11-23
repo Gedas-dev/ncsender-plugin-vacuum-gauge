@@ -88,8 +88,15 @@
         <input id="vg-delay" type="number" step="0.5" min="0.5" max="30">
       </div>
       <div class="vg-note" id="vg-mode-note" style="margin-top:6px"></div>
+      <div class="vg-row" id="vg-raise-row">
+        <label for="vg-raise">Raise Z to<small id="vg-raise-info">after the stop. Needs a homed machine</small></label>
+        <select id="vg-raise">
+          <option value="safez">Safe Z height</option>
+          <option value="distance">Fixed distance</option>
+        </select>
+      </div>
       <div class="vg-row" id="vg-lift-row">
-        <label for="vg-lift">Raise Z by<small>mm, after the stop. Needs a homed machine; never goes above the top</small></label>
+        <label for="vg-lift">Raise Z by<small id="vg-lift-info">mm, after the stop. Needs a homed machine; never goes above the top</small></label>
         <input id="vg-lift" type="number" step="1" min="0" max="200">
       </div>
 
@@ -119,7 +126,7 @@
   var SERVICE_VERSION = 4;
   var MINI_STYLES = ['number', 'dial', 'bar', 'slim', 'block'];
   var INHG_PER_KPA = 0.2953;
-  var DEFAULTS = { device: 'vac-gauge.local', pollMs: 500, greenAt: -15, yellowAt: -8, guardMode: 'warn', minVac: -10, guardDelaySec: 2, liftMm: 20, miniStyle: 'number', miniSize: 230 };
+  var DEFAULTS = { device: 'vac-gauge.local', pollMs: 500, greenAt: -15, yellowAt: -8, guardMode: 'warn', minVac: -10, guardDelaySec: 2, raiseTo: 'safez', liftMm: 20, miniStyle: 'number', miniSize: 230 };
 
   function apiBase() {
     try {
@@ -129,6 +136,13 @@
       if (window.parent && window.parent.ncSender && typeof window.parent.ncSender.getApiBaseUrl === 'function') return window.parent.ncSender.getApiBaseUrl(null) || '';
     } catch (e) {}
     return '';
+  }
+
+  // The port ncSender is served on, so the plugin script can read Safe Z.
+  function serverPort() {
+    var m = /^https?:\/\/[^\/:]+:(\d+)/.exec(apiBase());
+    if (m) return parseInt(m[1], 10);
+    try { return parseInt(location.port, 10) || null; } catch (e) { return null; }
   }
 
   function vac(v, fallback) {
@@ -150,6 +164,7 @@
       miniStyle: MINI_STYLES.indexOf(raw.miniStyle) >= 0 ? raw.miniStyle : null,
       miniSize: (function (n) { return isFinite(n) ? Math.min(320, Math.max(140, Math.round(n))) : DEFAULTS.miniSize; })(parseFloat(raw.miniSize)),
       pinned: raw.pinned !== false,
+      raiseTo: raw.raiseTo === 'distance' ? 'distance' : 'safez',
       liftMm: (function (n) { return isFinite(n) ? Math.min(200, Math.max(0, n)) : DEFAULTS.liftMm; })(parseFloat(raw.liftMm))
     };
     if (c.yellowAt < c.greenAt) { var t = c.yellowAt; c.yellowAt = c.greenAt; c.greenAt = t; }
@@ -214,7 +229,7 @@
 
     svc.pollServer = function () {
       return fetch(apiBase() + '/api/plugins/' + PLUGIN_ID + '/request', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'status' })
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'status', port: serverPort() })
       }).then(function (res) {
         if (res.status === 404 || res.status === 405) { svc.direct = true; return svc.pollDirect(); }
         if (!res.ok) throw new Error('ncSender answered HTTP ' + res.status);
@@ -445,6 +460,7 @@
     $('vg-mode').value = cfg.guardMode;
     $('vg-min').value = Math.abs(cfg.minVac);
     $('vg-delay').value = cfg.guardDelaySec;
+    $('vg-raise').value = cfg.raiseTo;
     $('vg-lift').value = cfg.liftMm;
     showLift();
   }
@@ -457,6 +473,7 @@
       guardMode: $('vg-mode').value,
       minVac: $('vg-min').value,
       guardDelaySec: $('vg-delay').value,
+      raiseTo: $('vg-raise').value,
       liftMm: $('vg-lift').value,
       miniStyle: svc.miniStyle,
       miniSize: svc.cfg.miniSize,
@@ -469,9 +486,20 @@
     park: 'Pauses the job, stops the spindle and parks Z, using the controller\'s parking cycle ($41, $56 to $59). Resume to continue. If parking is off in the controller, the spindle still stops but Z stays.',
     stop: 'Ends the job, switches the spindle off, then raises Z. The job cannot be resumed; start again from the stopped line.'
   };
+  var safeZInfo = { value: null, error: null };
   function showLift() {
-    var m = $('vg-mode').value;
+    var m = $('vg-mode').value, toSafeZ = $('vg-raise').value === 'safez';
+    $('vg-raise-row').style.display = m === 'stop' ? '' : 'none';
     $('vg-lift-row').style.display = m === 'stop' ? '' : 'none';
+    var info = 'after the stop. Needs a homed machine';
+    if (toSafeZ && svc.cfg.raiseTo === 'safez' && svc.cfg.guardMode === 'stop') {
+      if (typeof safeZInfo.value === 'number') info = 'Safe Z in ncSender is now ' + safeZInfo.value + ' mm (machine Z)';
+      else if (safeZInfo.error) info = safeZInfo.error + '. The fixed distance below is used instead';
+    }
+    $('vg-raise-info').textContent = info;
+    $('vg-lift-info').textContent = toSafeZ
+      ? 'mm. Only used if the Safe Z height cannot be read'
+      : 'mm, after the stop. Needs a homed machine; never goes above the top';
     $('vg-mode-note').textContent = MODE_NOTES[m] || '';
     $('vg-mode-note').style.display = MODE_NOTES[m] ? '' : 'none';
   }
@@ -516,6 +544,10 @@
 
   function render(reading, cfg) {
     if (!document.body.contains(root)) return false;   // dialog closed: unsubscribe
+    if (reading && reading.guard) {
+      var sz = reading.guard.safeZ, se = reading.guard.safeZError || null;
+      if (sz !== safeZInfo.value || se !== safeZInfo.error) { safeZInfo = { value: typeof sz === 'number' ? sz : null, error: se }; showLift(); }
+    }
     var z = zoneOf(reading, cfg);
     $('vg-dot').style.background = z.color;
     $('vg-state').textContent = reading ? z.label : 'CONNECTING';
@@ -617,6 +649,7 @@
   });
 
   $('vg-mode').addEventListener('change', showLift);
+  $('vg-raise').addEventListener('change', showLift);
 
   $('vg-style').value = svc.miniStyle;
   $('vg-style').addEventListener('change', function () {

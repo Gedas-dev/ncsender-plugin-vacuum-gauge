@@ -1,8 +1,8 @@
 # Vacuum Gauge for ncSender
 
-**Version 1.3.1** · [Download the latest release](https://github.com/Gedas-dev/ncsender-plugin-vacuum-gauge/releases/latest)
+**Version 1.4.0** · [Download the latest release](https://github.com/Gedas-dev/ncsender-plugin-vacuum-gauge/releases/latest)
 
-A WiFi vacuum gauge for a CNC vacuum table. An M5Stack ATOM Lite reads a pressure sensor on the vacuum line, and a plugin shows the reading inside [ncSender](https://github.com/siganberg/ncSender). If the vacuum drops during a job it can warn you, feed-hold, pause and park Z with the spindle stopped, or stop the job and raise Z.
+A WiFi vacuum gauge for a CNC vacuum table. An M5Stack ATOM Lite reads a pressure sensor on the vacuum line, and a plugin shows the reading inside [ncSender](https://github.com/siganberg/ncSender). If the vacuum drops during a job it can warn you, feed-hold, pause and park Z with the spindle stopped, or stop the job and raise Z to your Safe Z height.
 
 ![Vacuum Gauge on the ncSender main screen, reading a real vacuum table](docs/main-screen.png)
 
@@ -48,6 +48,7 @@ Open [`firmware/VacDisplay/VacDisplay.ino`](firmware/VacDisplay/VacDisplay.ino) 
 - Tested on a real machine with ncSender Pro 2.0.318.
 - Needs ncSender 2.0.225 or newer (ncSender Pro 2.0.316 or newer).
 - Feed hold stops the movement, but **the spindle keeps turning**. "Pause + park Z" needs parking enabled in the controller ($41). This is an operator aid, not a safety device.
+- "Stop job + raise Z" raises Z to the Safe Z height set in ncSender (machine coordinates), the same value Park and `$SAFEZ` use. You can choose a fixed distance instead. Z is never moved down, and the machine must be homed.
 - When you first set up "Pause + park Z" or "Stop job + raise Z", try it in air: no bit, and Z well above the table.
 
 ## Contributors
