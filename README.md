@@ -54,6 +54,7 @@ Open [`firmware/VacDisplay/VacDisplay.ino`](firmware/VacDisplay/VacDisplay.ino) 
 ## Contributors
 
 - [Gedas-dev](https://github.com/Gedas-dev): plugin and firmware
+- [dehoutwinkel](https://github.com/dehoutwinkel) (Daryl): hardware design and build instructions
 
 ## Licence
 
