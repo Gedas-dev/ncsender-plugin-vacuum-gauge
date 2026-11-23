@@ -1,7 +1,7 @@
 {
   "id": "community.vacuum-gauge",
   "name": "Vacuum Gauge",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "minAppVersion": "2.0.0",
   "platforms": {
     "v2": "2.0.225",
