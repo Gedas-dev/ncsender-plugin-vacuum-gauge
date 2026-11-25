@@ -207,9 +207,21 @@ function vgFmt(v) {
   return (Math.round(v * 10) / 10).toFixed(1) + ' inHg';
 }
 
+// The vacuum check only runs while the mini gauge is pinned. Unpinned means
+// "not using the vacuum table for this job" (other clamping), so nothing is
+// checked and the job is never warned, held or stopped.
+// On an ncSender without the floating panel the pin is kept per browser and
+// this script cannot see it, so there the check follows the setting alone.
+function vgGuardOn() {
+  var cfg = VG.cfg;
+  if (!cfg || cfg.guardMode === 'off') return false;
+  return !pluginContext.overlay || cfg.pinned;
+}
+
 function vgGuard(now) {
   var cfg = VG.cfg;
-  if (!cfg || cfg.guardMode === 'off' || !pluginContext.http) return;
+  if (!cfg || !pluginContext.http) return;
+  if (!vgGuardOn()) { VG.weakSince = 0; VG.actedThisEpisode = false; VG.offlineNoticed = false; VG.prevJob = ''; return; }
   var state = pluginContext.getServerState();
   var job = state && state.jobStatus ? String(state.jobStatus) : '';
   var running = job === 'running';
@@ -317,7 +329,7 @@ function vgLiftFor(z, liftMm) {
 var VG_SAFEZ_DEFAULT = -5, VG_SAFEZ_EVERY_MS = 15000, VG_SAFEZ_MAX_AGE_MS = 120000;
 function vgSafeZStep(now) {
   var sz = VG.safeZ;
-  if (!pluginContext.http || !VG.cfg || VG.cfg.guardMode !== 'stop' || VG.cfg.raiseTo !== 'safez') return;
+  if (!pluginContext.http || !VG.cfg || !vgGuardOn() || VG.cfg.guardMode !== 'stop' || VG.cfg.raiseTo !== 'safez') return;
   if (sz.busy && now - sz.askedAt < 5000) return;
   if (sz.askedAt && now - sz.askedAt < VG_SAFEZ_EVERY_MS) return;
   sz.busy = true;
@@ -513,6 +525,7 @@ function onRequest(payload) {
     error: fresh ? null : (VG.lastError || 'No reply from the gauge'),
     guard: {
       mode: VG.cfg ? VG.cfg.guardMode : 'off',
+      active: vgGuardOn(),
       weak: VG.weakSince > 0,
       lastAction: VG.lastAction,
       lastActionAgoMs: VG.lastActionAt ? now - VG.lastActionAt : null,

@@ -1,15 +1,12 @@
 ## What's Changed
 
 ### ✨ New
-- **Stop job + raise Z now goes to your Safe Z height.** After the stop, Z rises to the Safe Z height set in ncSender (machine coordinates), the same value Park and `$SAFEZ` use. If you change Safe Z in ncSender, the plugin follows within 15 seconds
-- New option **Raise Z to**: *Safe Z height* (default) or *Fixed distance* (the old behaviour). The window shows the Safe Z value the plugin will use
-- Z is never moved down: if it is already at or above Safe Z it stays where it is. If Safe Z cannot be read, the fixed distance is used
+- **Pin = vacuum check on. Unpin = off.** The vacuum check now only runs while the mini gauge is pinned. Unpin it when you use another clamping method, and jobs run with no warning, hold or stop from the plugin. Pin it again to turn the check back on
+- The Vacuum Gauge window says when the check is off because the gauge is not pinned
 
-### 🔧 Changes in 1.4.1
-- Plugin author is now listed as Gedas-dev
-
-### ⚠️ Note
-- If you use "Stop job + raise Z", Z now rises further than before (to Safe Z, not 20 mm). Try it in air once: no bit, Z well above the table
+### ℹ️ Notes
+- This needs the floating panel (ncSender Pro 2.0.317 or newer). On other versions, set "If the vacuum drops" to Off to run without the check
+- If you used the check with the mini gauge unpinned, pin it now, or the check stays off
 
 ### 📦 Install
-Download `community.vacuum-gauge_v1.4.1.zip` below. In ncSender open Plugins → Install from a ZIP file. Do not unzip it.
+Download `community.vacuum-gauge_v1.5.0.zip` below. In ncSender open Plugins → Install from a ZIP file. Do not unzip it.

@@ -500,8 +500,14 @@
     $('vg-lift-info').textContent = toSafeZ
       ? 'mm. Only used if the Safe Z height cannot be read'
       : 'mm, after the stop. Needs a homed machine; never goes above the top';
-    $('vg-mode-note').textContent = MODE_NOTES[m] || '';
-    $('vg-mode-note').style.display = MODE_NOTES[m] ? '' : 'none';
+    // With the floating panel, the check only runs while the mini gauge is pinned.
+    var unpinnedOff = svc.panel && svc.cfg.pinned === false && m !== 'off';
+    var note = unpinnedOff
+      ? 'The mini gauge is not pinned, so the vacuum check is OFF and jobs run without it. Pin the mini gauge to turn the check on.'
+      : (MODE_NOTES[m] || '');
+    $('vg-mode-note').textContent = note;
+    $('vg-mode-note').style.fontWeight = unpinnedOff ? '700' : '';
+    $('vg-mode-note').style.display = note ? '' : 'none';
   }
 
   function dur(sec) {
@@ -588,6 +594,7 @@
       if (MINI_STYLES.indexOf(reading.cfg.miniStyle) >= 0 && document.activeElement !== $('vg-style')) svc.miniStyle = svc.cfg.miniStyle = reading.cfg.miniStyle;
     }
     var isPinned = panel ? svc.cfg.pinned !== false : !!svc.mini;
+    if (panel && svc.shownPinned !== isPinned) { svc.shownPinned = isPinned; showLift(); }
     $('vg-pin').textContent = isPinned ? 'Unpin mini gauge' : 'Pin mini gauge';
     if (document.activeElement !== $('vg-style')) $('vg-style').value = svc.miniStyle;
     if (document.activeElement !== $('vg-size')) $('vg-size').value = svc.cfg.miniSize;
@@ -630,7 +637,8 @@
   $('vg-pin').addEventListener('click', function () {
     if (svc.panel) {
       var pin = svc.cfg.pinned === false;
-      savePanel({ pinned: pin }, pin ? 'Pinned' : 'Unpinned');
+      var checks = svc.cfg.guardMode !== 'off';
+      savePanel({ pinned: pin }, pin ? (checks ? 'Pinned: vacuum check on' : 'Pinned') : (checks ? 'Unpinned: vacuum check off' : 'Unpinned'));
       $('vg-pin').textContent = pin ? 'Unpin mini gauge' : 'Pin mini gauge';
       return;
     }
